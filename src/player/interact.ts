@@ -10,6 +10,7 @@ import {
 import { TILE_DROP, TILE_PROPS, TileType } from "../world/tiles";
 import type { Camera } from "../engine/camera";
 import type { Input } from "../engine/input";
+import type { Particles } from "../engine/particles";
 import type { World } from "../world/world";
 import type { Player } from "./player";
 import type { Inventory } from "./inventory";
@@ -30,7 +31,7 @@ export class Interaction {
   private mineFraction = 0;
   private placeCooldown = 0;
 
-  update(dt: number, input: Input, camera: Camera, world: World, player: Player, inventory: Inventory): void {
+  update(dt: number, input: Input, camera: Camera, world: World, player: Player, inventory: Inventory, particles: Particles): void {
     const worldPos = camera.screenToWorld(input.mouseX, input.mouseY);
     const tx = Math.floor(worldPos.x / TILE_SIZE);
     const ty = Math.floor(worldPos.y / TILE_SIZE);
@@ -50,14 +51,23 @@ export class Interaction {
 
     this.placeCooldown = Math.max(0, this.placeCooldown - dt);
 
-    this.updateMining(dt, input, world, tx, ty, inRange, inventory);
+    this.updateMining(dt, input, world, tx, ty, inRange, inventory, particles);
 
     if (input.mouseRightDown && inRange && this.placeCooldown <= 0) {
       if (this.tryPlace(tx, ty, world, player, inventory)) this.placeCooldown = PLACE_COOLDOWN;
     }
   }
 
-  private updateMining(dt: number, input: Input, world: World, tx: number, ty: number, inRange: boolean, inventory: Inventory): void {
+  private updateMining(
+    dt: number,
+    input: Input,
+    world: World,
+    tx: number,
+    ty: number,
+    inRange: boolean,
+    inventory: Inventory,
+    particles: Particles,
+  ): void {
     if (!input.mouseLeftDown || !inRange) {
       this.resetMining();
       return;
@@ -84,6 +94,7 @@ export class Interaction {
     if (this.mineProgress >= needed) {
       world.setTile(tx, ty, TileType.AR);
       inventory.add(TILE_DROP[tile], 1);
+      particles.spawnMineDebris((tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE, props.cor);
       this.resetMining();
     }
   }

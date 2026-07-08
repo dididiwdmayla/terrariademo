@@ -1,4 +1,5 @@
 import {
+  SPARK_SPAWN_CHANCE_PER_SEC,
   TILE_SIZE,
   TORCH_FLAME_BASE_H,
   TORCH_FLAME_INNER,
@@ -13,7 +14,44 @@ import {
 } from "../config";
 import { tileHash } from "./tiles";
 import type { Camera } from "../engine/camera";
+import type { Particles } from "../engine/particles";
 import type { World } from "./world";
+
+// Encontra as tochas dentro do retângulo da câmera + 1 tile de margem.
+function* visibleTorches(world: World, camera: Camera, viewportW: number, viewportH: number): Generator<{ tx: number; ty: number }> {
+  const zoom = camera.zoom;
+  const minX = Math.floor(camera.x / TILE_SIZE) - 1;
+  const minY = Math.floor(camera.y / TILE_SIZE) - 1;
+  const maxX = Math.floor((camera.x + viewportW / zoom) / TILE_SIZE) + 1;
+  const maxY = Math.floor((camera.y + viewportH / zoom) / TILE_SIZE) + 1;
+  const w = world.widthTiles;
+  for (const idx of world.torches) {
+    const tx = idx % w;
+    const ty = (idx / w) | 0;
+    if (tx < minX || tx > maxX || ty < minY || ty > maxY) continue;
+    yield { tx, ty };
+  }
+}
+
+// Fagulhas sutis subindo das tochas visíveis (chance independente por tocha a
+// cada passo fixo, p/ não sincronizar todas no mesmo instante).
+export function updateTorchSparks(
+  dt: number,
+  particles: Particles,
+  world: World,
+  camera: Camera,
+  viewportW: number,
+  viewportH: number,
+): void {
+  if (world.torches.size === 0) return;
+  const chance = SPARK_SPAWN_CHANCE_PER_SEC * dt;
+  for (const { tx, ty } of visibleTorches(world, camera, viewportW, viewportH)) {
+    if (Math.random() >= chance) continue;
+    const flameCenterX = (tx + 0.5) * TILE_SIZE;
+    const flameTopY = (ty + 1) * TILE_SIZE - TORCH_HANDLE_H - TORCH_FLAME_BASE_H;
+    particles.spawnTorchSpark(flameCenterX, flameTopY);
+  }
+}
 
 // Desenho dinâmico das tochas visíveis (fora do cache de chunk, porque a
 // chama tem flicker procedural: altura e tom variam com o tempo, com fase
@@ -31,17 +69,8 @@ export function drawTorches(
   const zoom = camera.zoom;
   const camSX = Math.floor(camera.x * zoom);
   const camSY = Math.floor(camera.y * zoom);
-  const minX = Math.floor(camera.x / TILE_SIZE) - 1;
-  const minY = Math.floor(camera.y / TILE_SIZE) - 1;
-  const maxX = Math.floor((camera.x + viewportW / zoom) / TILE_SIZE) + 1;
-  const maxY = Math.floor((camera.y + viewportH / zoom) / TILE_SIZE) + 1;
-  const w = world.widthTiles;
 
-  for (const idx of world.torches) {
-    const tx = idx % w;
-    const ty = (idx / w) | 0;
-    if (tx < minX || tx > maxX || ty < minY || ty > maxY) continue;
-
+  for (const { tx, ty } of visibleTorches(world, camera, viewportW, viewportH)) {
     const sx = tx * TILE_SIZE * zoom - camSX;
     const sy = ty * TILE_SIZE * zoom - camSY;
 

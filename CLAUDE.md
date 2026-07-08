@@ -18,14 +18,17 @@ src/
     camera.ts          Câmera (posição, zoom, conversão world->screen)
     input.ts            Captura de teclado/mouse
     renderer.ts        Setup do canvas, resize, clear, contexto 2D
+    particles.ts         Sistema de partículas (fragmentos de mineração, poeira de aterrissagem, fagulhas de tocha)
   world/
     gen.ts               Geração procedural do mundo (noise 1D, cavernas por CA, veios de minério)
     world.ts             Armazenamento do mundo em tiles + culling/cache de chunks visíveis
-    chunk.ts            Chunk 32x32 com canvas offscreen cacheado (redesenha só quando sujo)
+    chunk.ts            Chunk 32x32 com canvas offscreen cacheado (redesenha só quando sujo); inclui textura procedural por tile (specks, rachaduras, brilho de minério, tufos de grama)
     tiles.ts              Enum de tiles + tabela de propriedades (sólido, cor, dureza) + paletas
     light.ts              Iluminação por tile (níveis 0-15, BFS céu/tochas, relight incremental, overlay suave)
     daynight.ts        Ciclo dia/noite (relógio, cor do céu por keyframes, estrelas procedurais)
-    torches.ts          Desenho dinâmico das tochas (chama com flicker procedural)
+    torches.ts          Desenho dinâmico das tochas (chama com flicker procedural) + fagulhas
+    sparkle.ts           Cintilância lenta e dinâmica dos tiles de minério de ouro visíveis
+    parallax.ts          Background com camadas de colinas distantes e nuvens procedurais, com parallax e ciclo dia/noite
   player/
     player.ts            Estado do jogador + desenho procedural
     physics.ts           Física de plataforma (gravidade, aceleração/fricção, pulo variável, coyote time, colisão AABB por eixo)
@@ -52,5 +55,6 @@ src/
 - [x] Fase 5 — UI/HUD (vida, inventário, hotbar) — barra de vida com HP atual/máximo, hotbar de 9 slots
 - [x] Fase 6 — Gameplay (mineração, construção, itens) — mira por alcance, mineração com rachaduras em 3 estágios, construção em tile de ar adjacente a sólido sem sobrepor o player, inventário simples integrado à hotbar
 - [x] Fase 7 — Iluminação (luz por tile 0-15 via BFS em dois canais céu/blocos, relight incremental por caixa, tocha colocável com chama em flicker, overlay de escuridão suavizado, ciclo dia/noite de 10 min com crepúsculo e estrelas procedurais)
+- [x] Fase 8 — Polimento visual (textura procedural por tile determinística por hash: specks/pedrinhas na terra, rachaduras na pedra, brilho fixo + cintilância lenta no ouro, tufos de grama; background parallax com 3 camadas de colinas e nuvens procedurais, escurecendo à noite; partículas de fragmentos ao minerar, poeira ao aterrissar de queda alta e fagulhas subindo das tochas)
 
 > Atualize esta seção ao final de cada fase concluída, marcando o item correspondente.

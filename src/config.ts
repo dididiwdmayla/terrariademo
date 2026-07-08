@@ -73,6 +73,75 @@ export const TILE_HARDNESS = {
   TOCHA: 1,
 } as const;
 
+// --- Textura procedural dos tiles (determinística por hash de posição) ---
+export const DIRT_SPECK_COUNT = 3; // pontinhos/pedrinhas por tile de terra
+export const DIRT_SPECK_SIZE = 2; // px nativos
+export const DIRT_SPECK_DARK_FACTOR = 0.62;
+export const DIRT_SPECK_LIGHT_FACTOR = 1.5;
+export const STONE_CRACK_COUNT = 2; // rachaduras sutis por tile de pedra
+export const STONE_CRACK_FACTOR = 0.8; // tom (mais escuro) das rachaduras
+export const STONE_CRACK_LEN_MIN = 4; // px nativos
+export const STONE_CRACK_LEN_MAX = 9;
+export const ORE_SHINE_FACTOR = 1.7; // brilho do ponto de destaque fixo do minério
+export const ORE_SHINE_SIZE = 2; // px nativos
+export const ORE_SHINE_COUNT = 2;
+export const GOLD_TWINKLE_SPEED = 1.1; // rad/s do cintilar lento do ouro
+export const GOLD_TWINKLE_COLOR = "#fff4c2";
+export const GOLD_TWINKLE_SIZE = 2; // px nativos
+export const GRASS_TUFT_COLOR_LIGHT = "#6fc95a";
+export const GRASS_TUFT_COLOR_DARK = "#3d8232";
+export const GRASS_TUFT_COUNT = 3; // tufos por tile de grama exposto
+export const GRASS_TUFT_HEIGHT_MIN = 3; // px nativos, acima do tile
+export const GRASS_TUFT_HEIGHT_MAX = 6;
+export const GRASS_TUFT_WIDTH = 2; // px nativos
+
+// --- Background parallax ---
+export interface ParallaxLayerConfig {
+  speedFactor: number; // fração da velocidade da câmera (0 = parado, 1 = junto do mundo)
+  wavelength: number; // largura característica das colinas, em px de mundo
+  amplitude: number; // altura das colinas, em px de mundo
+  baseHeightFrac: number; // altura da base das colinas, fração da viewport a partir do topo
+  dayColor: string;
+  nightColor: string;
+}
+export const PARALLAX_LAYERS: readonly ParallaxLayerConfig[] = [
+  { speedFactor: 0.15, wavelength: 420, amplitude: 70, baseHeightFrac: 0.62, dayColor: "#9db4c9", nightColor: "#1c2438" },
+  { speedFactor: 0.32, wavelength: 260, amplitude: 100, baseHeightFrac: 0.7, dayColor: "#7f9bb3", nightColor: "#161d2f" },
+  { speedFactor: 0.55, wavelength: 160, amplitude: 130, baseHeightFrac: 0.8, dayColor: "#5f7f9b", nightColor: "#101526" },
+];
+export const CLOUD_SPEED_FACTOR = 0.06; // fração da velocidade da câmera
+export const CLOUD_DRIFT_PX_PER_SEC = 4; // deriva própria das nuvens, independente da câmera
+export const CLOUD_CELL_PX = 340; // tamanho da célula do grid de nuvens, em px de mundo
+export const CLOUD_CHANCE = 0.4; // chance de uma célula conter nuvem
+export const CLOUD_WIDTH_MIN = 60;
+export const CLOUD_WIDTH_MAX = 140;
+export const CLOUD_HEIGHT_MIN = 18;
+export const CLOUD_HEIGHT_MAX = 34;
+export const CLOUD_Y_FRAC_MIN = 0.08; // faixa vertical das nuvens, fração da viewport
+export const CLOUD_Y_FRAC_MAX = 0.4;
+export const CLOUD_DAY_COLOR = "rgba(255, 255, 255, 0.75)";
+export const CLOUD_NIGHT_COLOR = "rgba(150, 160, 190, 0.35)";
+
+// --- Partículas ---
+export const PARTICLE_GRAVITY = 700; // px/s^2
+export const MINE_PARTICLE_COUNT_MIN = 4;
+export const MINE_PARTICLE_COUNT_MAX = 6;
+export const MINE_PARTICLE_SPEED = 90; // px/s, velocidade inicial máxima
+export const MINE_PARTICLE_LIFE = 0.5; // segundos
+export const MINE_PARTICLE_SIZE = 2; // px nativos
+export const LANDING_FALL_SPEED_THRESHOLD = 420; // px/s, vy mínima p/ gerar poeira ao aterrissar
+export const DUST_PARTICLE_COUNT = 6;
+export const DUST_PARTICLE_SPEED = 60; // px/s
+export const DUST_PARTICLE_LIFE = 0.4; // segundos
+export const DUST_PARTICLE_SIZE = 2; // px nativos
+export const DUST_PARTICLE_COLOR = "#c9c2b4";
+export const SPARK_SPAWN_CHANCE_PER_SEC = 2.5; // fagulhas/s por tocha visível
+export const SPARK_PARTICLE_LIFE = 0.7; // segundos
+export const SPARK_PARTICLE_SPEED = 14; // px/s, subida
+export const SPARK_PARTICLE_DRIFT = 6; // px/s, deriva horizontal máxima
+export const SPARK_PARTICLE_SIZE = 1; // px nativos
+export const SPARK_PARTICLE_COLOR = "#f8d858";
+
 // --- Câmera / Render ---
 export const CAMERA_ZOOM = 2;
 export const CAMERA_FOLLOW_SPEED = 8; // taxa do lerp de seguir o player (1/s)
