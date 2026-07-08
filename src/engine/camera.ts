@@ -16,4 +16,11 @@ export class Camera {
     this.x = worldX - viewportWidth / (2 * this.zoom);
     this.y = worldY - viewportHeight / (2 * this.zoom);
   }
+
+  clampToWorld(worldPxWidth: number, worldPxHeight: number, viewportWidth: number, viewportHeight: number): void {
+    const viewW = viewportWidth / this.zoom;
+    const viewH = viewportHeight / this.zoom;
+    this.x = Math.max(0, Math.min(this.x, worldPxWidth - viewW));
+    this.y = Math.max(0, Math.min(this.y, worldPxHeight - viewH));
+  }
 }

@@ -19,9 +19,10 @@ src/
     input.ts            Captura de teclado/mouse
     renderer.ts        Setup do canvas, resize, clear, contexto 2D
   world/
-    gen.ts               Geração procedural do mundo
-    chunk.ts            Estrutura de chunk de tiles
-    tiles.ts              Definições de tipos de tile
+    gen.ts               Geração procedural do mundo (noise 1D, cavernas por CA, veios de minério)
+    world.ts             Armazenamento do mundo em tiles + culling/cache de chunks visíveis
+    chunk.ts            Chunk 32x32 com canvas offscreen cacheado (redesenha só quando sujo)
+    tiles.ts              Enum de tiles + tabela de propriedades (sólido, cor, dureza) + paletas
   player/
     player.ts            Estado do jogador
     physics.ts           Gravidade, movimento, colisão
@@ -39,9 +40,9 @@ src/
 
 ## STATUS
 
-- [ ] Fase 1 — Setup do projeto (Vite + TS + estrutura de pastas + canvas fullscreen + game loop + retângulo de teste)
-- [ ] Fase 2 — Engine core (camera, input, renderer completos e integrados)
-- [ ] Fase 3 — Geração de mundo (tiles, chunks, terreno procedural)
+- [x] Fase 1 — Setup do projeto (Vite + TS + estrutura de pastas + canvas fullscreen + game loop + retângulo de teste)
+- [x] Fase 2 — Engine core (camera com clamp e movimento livre WASD/setas, input, renderer integrados)
+- [x] Fase 3 — Geração de mundo (tiles com propriedades, chunks cacheados com culling, colinas por value noise 1D, cavernas por cellular automata, minérios por random walk, bedrock)
 - [ ] Fase 4 — Player (movimento, física, colisão com o mundo)
 - [ ] Fase 5 — UI/HUD (vida, inventário, hotbar)
 - [ ] Fase 6 — Gameplay (mineração, construção, itens)
