@@ -225,5 +225,6 @@ export function generateWorld(world: World, seed: number): void {
   const lastRow = (world.heightTiles - 1) * w;
   for (let x = 0; x < w; x++) world.tiles[lastRow + x] = TileType.BEDROCK;
 
+  world.lighting.recomputeAll();
   world.markAllDirty();
 }

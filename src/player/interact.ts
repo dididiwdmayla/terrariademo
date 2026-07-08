@@ -65,7 +65,8 @@ export class Interaction {
 
     const tile = world.getTile(tx, ty);
     const props = TILE_PROPS[tile];
-    if (!props.solido || props.dureza === Infinity) {
+    // minerável = qualquer tile não-ar destrutível (inclui tocha, que não é sólida)
+    if (tile === TileType.AR || props.dureza === Infinity) {
       this.resetMining();
       return;
     }
@@ -97,6 +98,9 @@ export class Interaction {
   private tryPlace(tx: number, ty: number, world: World, player: Player, inventory: Inventory): boolean {
     if (world.getTile(tx, ty) !== TileType.AR) return false;
 
+    const slot = inventory.selectedSlot();
+    if (!slot || slot.count <= 0) return false;
+
     const adjacentSolid =
       TILE_PROPS[world.getTile(tx + 1, ty)].solido ||
       TILE_PROPS[world.getTile(tx - 1, ty)].solido ||
@@ -104,17 +108,17 @@ export class Interaction {
       TILE_PROPS[world.getTile(tx, ty - 1)].solido;
     if (!adjacentSolid) return false;
 
-    const tileX0 = tx * TILE_SIZE;
-    const tileY0 = ty * TILE_SIZE;
-    const overlapsPlayer =
-      tileX0 < player.x + player.width &&
-      tileX0 + TILE_SIZE > player.x &&
-      tileY0 < player.y + player.height &&
-      tileY0 + TILE_SIZE > player.y;
-    if (overlapsPlayer) return false;
-
-    const slot = inventory.selectedSlot();
-    if (!slot || slot.count <= 0) return false;
+    // só bloco sólido não pode sobrepor o player (tocha atravessável pode)
+    if (TILE_PROPS[slot.tile].solido) {
+      const tileX0 = tx * TILE_SIZE;
+      const tileY0 = ty * TILE_SIZE;
+      const overlapsPlayer =
+        tileX0 < player.x + player.width &&
+        tileX0 + TILE_SIZE > player.x &&
+        tileY0 < player.y + player.height &&
+        tileY0 + TILE_SIZE > player.y;
+      if (overlapsPlayer) return false;
+    }
 
     world.setTile(tx, ty, slot.tile);
     inventory.consumeSelected(1);

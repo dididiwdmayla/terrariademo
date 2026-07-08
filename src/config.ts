@@ -53,6 +53,7 @@ export const TILE_COLORS = {
   MINERIO_FERRO: "#c3b7a6",
   MINERIO_OURO: "#e6c34c",
   BEDROCK: "#2b2b31",
+  TOCHA: "#e8a33d",
 } as const;
 export const TILE_SHADE_VARIANTS = [0.88, 0.95, 1, 1.06] as const; // fatores de variação de tom por posição
 export const TILE_TOP_LIGHT_FACTOR = 1.35; // borda superior mais clara dos tiles expostos
@@ -69,6 +70,7 @@ export const TILE_HARDNESS = {
   MINERIO_FERRO: 5,
   MINERIO_OURO: 5,
   BEDROCK: Infinity,
+  TOCHA: 1,
 } as const;
 
 // --- Câmera / Render ---
@@ -149,6 +151,52 @@ export const PLAYER_FALL_ARM_SPREAD = 5; // px de abertura dos braços ao cair
 export const PLAYER_FALL_LEG_SPREAD = 2; // px de abertura das pernas ao cair
 export const PLAYER_MINE_SWING_SPEED = 7; // ciclos/s do golpe de mineração
 export const PLAYER_MINE_SWING_AMPLITUDE = 0.8; // rad de amplitude do golpe em torno do cursor
+
+// --- Iluminação (níveis 0-15 por tile, propagados por BFS) ---
+export const LIGHT_MAX_LEVEL = 15;
+export const LIGHT_ATTENUATION_AIR = 1; // níveis perdidos ao entrar num tile de ar
+export const LIGHT_ATTENUATION_SOLID = 2; // ...num tile sólido
+export const TORCH_LIGHT_LEVEL = 14; // emissão da tocha
+export const LIGHT_RELIGHT_RADIUS = LIGHT_MAX_LEVEL + 1; // raio da caixa de relight incremental
+export const LIGHT_DARKNESS_GAMMA = 1.25; // curva da escuridão (maior = halo mais aberto)
+
+// --- Ciclo dia/noite ---
+export const DAY_CYCLE_SECONDS = 600; // 10 minutos reais por ciclo completo
+export const DAY_START_FRACTION = 0; // fração do ciclo em que o jogo começa (0 = amanhecer pleno)
+export const NIGHT_SKY_LIGHT = 0.12; // fator mínimo da luz do céu à noite
+export interface SkyKeyframe {
+  t: number; // fração do ciclo [0, 1]
+  cor: string; // cor do céu
+  luz: number; // fator da luz do céu [NIGHT_SKY_LIGHT, 1]
+}
+export const SKY_KEYFRAMES: readonly SkyKeyframe[] = [
+  { t: 0.0, cor: BACKGROUND_COLOR, luz: 1 },
+  { t: 0.4, cor: BACKGROUND_COLOR, luz: 1 },
+  { t: 0.45, cor: "#e8874a", luz: 0.55 }, // crepúsculo laranja
+  { t: 0.52, cor: "#0c1226", luz: NIGHT_SKY_LIGHT }, // noite azul-escura
+  { t: 0.88, cor: "#0c1226", luz: NIGHT_SKY_LIGHT },
+  { t: 0.95, cor: "#e8874a", luz: 0.55 }, // alvorada
+  { t: 1.0, cor: BACKGROUND_COLOR, luz: 1 },
+];
+
+// --- Estrelas procedurais (noite) ---
+export const STAR_CELL_PX = 24; // tamanho da célula do grid de estrelas, em px de mundo
+export const STAR_CHANCE = 0.16; // chance de uma célula conter estrela
+export const STAR_COLOR = "#e8ecff";
+export const STAR_TWINKLE_SPEED = 1.7; // rad/s do cintilar
+
+// --- Tocha (visual; a emissão de luz fica em TORCH_LIGHT_LEVEL) ---
+export const TORCH_START_COUNT = 20; // tochas iniciais na hotbar
+export const TORCH_HANDLE_COLOR = "#8a5c34";
+export const TORCH_HANDLE_W = 2; // px
+export const TORCH_HANDLE_H = 7; // px
+export const TORCH_FLAME_W = 6; // px
+export const TORCH_FLAME_BASE_H = 5; // px, altura mínima da chama
+export const TORCH_FLAME_VAR = 3; // px, variação de altura pelo flicker
+export const TORCH_FLAME_OUTER = "#e07b1f";
+export const TORCH_FLAME_OUTER_BRIGHT = "#f0942d"; // tom alternativo nos picos do flicker
+export const TORCH_FLAME_INNER = "#f8d858";
+export const TORCH_FLICKER_SPEED = 9; // rad/s do flicker procedural
 
 // --- Game loop ---
 export const FIXED_TIMESTEP = 1 / 60; // segundos

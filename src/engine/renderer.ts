@@ -25,8 +25,8 @@ export class Renderer {
     this.ctx.imageSmoothingEnabled = false;
   }
 
-  clear(): void {
-    this.ctx.fillStyle = BACKGROUND_COLOR;
+  clear(color: string = BACKGROUND_COLOR): void {
+    this.ctx.fillStyle = color;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 }

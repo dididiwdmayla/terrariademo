@@ -3,6 +3,9 @@ import { Camera } from "./engine/camera";
 import { Input } from "./engine/input";
 import { World } from "./world/world";
 import { generateWorld } from "./world/gen";
+import { DayNight } from "./world/daynight";
+import { drawTorches } from "./world/torches";
+import { TileType } from "./world/tiles";
 import { Player } from "./player/player";
 import { stepPlayer, type Controls } from "./player/physics";
 import { Inventory } from "./player/inventory";
@@ -13,6 +16,7 @@ import {
   FIXED_TIMESTEP,
   MAX_FRAME_DELTA,
   TILE_SIZE,
+  TORCH_START_COUNT,
   WORLD_SEED,
 } from "./config";
 
@@ -23,9 +27,12 @@ const input = new Input(canvas);
 const hud = new Hud();
 const inventory = new Inventory();
 const interaction = new Interaction();
+const dayNight = new DayNight();
 
 const world = new World();
 generateWorld(world, WORLD_SEED);
+
+inventory.add(TileType.TOCHA, TORCH_START_COUNT);
 
 // spawn na superfície, no centro do mundo
 const player = new Player();
@@ -36,7 +43,11 @@ player.y = world.surfaceHeight[midX] * TILE_SIZE - player.height;
 camera.centerOn(player.x + player.width / 2, player.y + player.height / 2, window.innerWidth, window.innerHeight);
 camera.clampToWorld(world.widthPx, world.heightPx, window.innerWidth, window.innerHeight);
 
+let animTime = 0;
+
 function update(dt: number): void {
+  animTime += dt;
+  dayNight.update(dt);
   const crouch = input.isDown("KeyS") || input.isDown("ArrowDown");
   const controls: Controls = {
     left: input.isDown("KeyA") || input.isDown("ArrowLeft"),
@@ -67,12 +78,25 @@ function update(dt: number): void {
 let fps = 0;
 
 function render(): void {
-  renderer.clear();
+  renderer.clear(dayNight.skyColor());
+  dayNight.renderStars(renderer.ctx, camera, window.innerWidth, window.innerHeight, animTime);
   world.drawVisible(renderer.ctx, camera, window.innerWidth, window.innerHeight);
-  player.render(renderer.ctx, camera);
+  // escuridão por cima do mundo; player e chamas das tochas vêm depois dela
+  // (o player é sombreado pelo brilho do tile em que está)
+  world.lighting.renderOverlay(renderer.ctx, camera, window.innerWidth, window.innerHeight, dayNight.skyLightFactor());
+  const brightness = world.lighting.brightnessAt(
+    Math.floor((player.x + player.width / 2) / TILE_SIZE),
+    Math.floor((player.y + player.height / 2) / TILE_SIZE),
+    dayNight.skyLightFactor(),
+  );
+  player.render(renderer.ctx, camera, brightness);
+  drawTorches(renderer.ctx, world, camera, animTime, window.innerWidth, window.innerHeight);
   interaction.render(renderer.ctx, camera);
   hud.render(renderer.ctx, fps, inventory, player);
 }
+
+// handle de debug p/ inspeção manual e verificação automatizada
+(window as unknown as Record<string, unknown>).__terra = { player, world, camera, dayNight, inventory };
 
 let accumulator = 0;
 let lastTime = performance.now();

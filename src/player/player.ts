@@ -41,9 +41,12 @@ import {
   PLAYER_WALK_LEG_SWING,
   PLAYER_WIDTH,
 } from "../config";
+import { shade } from "../world/tiles";
 import type { Camera } from "../engine/camera";
 
 type AnimState = "idle" | "walking" | "jumping" | "falling" | "crouching";
+
+const BRIGHTNESS_STEPS = 31; // quantização do brilho p/ cache de cores sombreadas
 
 // Estado do jogador + desenho procedural articulado (cabeça, tronco, braços, pernas).
 export class Player {
@@ -103,7 +106,24 @@ export class Player {
     }
   }
 
-  render(ctx: CanvasRenderingContext2D, camera: Camera): void {
+  // brilho local [0,1] vindo da iluminação; sombreia todas as cores do sprite
+  private brightness = 1;
+  private readonly shadeCache = new Map<string, string>();
+
+  private shaded(color: string): string {
+    const q = Math.round(this.brightness * BRIGHTNESS_STEPS);
+    if (q >= BRIGHTNESS_STEPS) return color;
+    const key = `${color}|${q}`;
+    let s = this.shadeCache.get(key);
+    if (!s) {
+      s = shade(color, q / BRIGHTNESS_STEPS);
+      this.shadeCache.set(key, s);
+    }
+    return s;
+  }
+
+  render(ctx: CanvasRenderingContext2D, camera: Camera, brightness = 1): void {
+    this.brightness = brightness;
     const z = camera.zoom;
     const s = camera.worldToScreen(this.x, this.y);
     const px = Math.round(s.x);
@@ -167,17 +187,17 @@ export class Player {
     const headX = 0;
     const headY = breathOffset;
 
-    ctx.fillStyle = PLAYER_COLORS.cabeca;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.cabeca);
     ctx.fillRect(mapX(headX), mapY(headY), headW * z, mapH(PLAYER_HEAD_HEIGHT));
 
     // cabelo
-    ctx.fillStyle = PLAYER_COLORS.cabelo;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.cabelo);
     ctx.fillRect(mapX(headX), mapY(headY), headW * z, mapH(PLAYER_HAIR_HEIGHT));
 
     // olhos virados pra direção do movimento (fecham ao piscar)
     const eye1 = this.facing === 1 ? PLAYER_EYE_X1 : this.width - PLAYER_EYE_X1 - PLAYER_EYE_W;
     const eye2 = this.facing === 1 ? PLAYER_EYE_X2 : this.width - PLAYER_EYE_X2 - PLAYER_EYE_W;
-    ctx.fillStyle = PLAYER_COLORS.olho;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.olho);
     const eyeH = this.blinking ? Math.max(1, PLAYER_EYE_H * 0.3) : PLAYER_EYE_H;
     const eyeY = headY + PLAYER_EYE_Y + (PLAYER_EYE_H - eyeH);
     ctx.fillRect(mapX(eye1), mapY(eyeY), PLAYER_EYE_W * z, mapH(eyeH));
@@ -190,14 +210,14 @@ export class Player {
       const dx = Math.max(-maxDx, Math.min(maxDx, Math.cos(this.mineAngle) * PLAYER_PUPIL_OFFSET));
       const dy = Math.max(-maxDy, Math.min(maxDy, Math.sin(this.mineAngle) * PLAYER_PUPIL_OFFSET));
       const pupilCenterY = eyeY + PLAYER_EYE_H / 2 + dy - PLAYER_PUPIL_H / 2;
-      ctx.fillStyle = PLAYER_PUPIL_COLOR;
+      ctx.fillStyle = this.shaded(PLAYER_PUPIL_COLOR);
       ctx.fillRect(mapX(eye1 + PLAYER_EYE_W / 2 - PLAYER_PUPIL_W / 2 + dx), mapY(pupilCenterY), PLAYER_PUPIL_W * z, mapH(PLAYER_PUPIL_H));
       ctx.fillRect(mapX(eye2 + PLAYER_EYE_W / 2 - PLAYER_PUPIL_W / 2 + dx), mapY(pupilCenterY), PLAYER_PUPIL_W * z, mapH(PLAYER_PUPIL_H));
     }
 
     // boca simples
     const mouthX = this.width / 2 - PLAYER_MOUTH_W / 2;
-    ctx.fillStyle = PLAYER_COLORS.boca;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.boca);
     ctx.fillRect(mapX(mouthX), mapY(headY + PLAYER_MOUTH_Y), PLAYER_MOUTH_W * z, mapH(PLAYER_MOUTH_H));
   }
 
@@ -210,7 +230,7 @@ export class Player {
     breathOffset: number,
   ): void {
     const torsoX = (this.width - PLAYER_TORSO_WIDTH) / 2;
-    ctx.fillStyle = PLAYER_COLORS.corpo;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.corpo);
     ctx.fillRect(mapX(torsoX), mapY(PLAYER_HEAD_HEIGHT + breathOffset), PLAYER_TORSO_WIDTH * z, mapH(PLAYER_TORSO_HEIGHT));
   }
 
@@ -229,7 +249,7 @@ export class Player {
     const leg1X = 0;
     const leg2X = PLAYER_LEG_WIDTH + PLAYER_LEG_GAP;
 
-    ctx.fillStyle = PLAYER_COLORS.perna;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.perna);
     ctx.fillRect(mapX(leg1X + dx1), mapY(legY), PLAYER_LEG_WIDTH * z, mapH(legH));
     ctx.fillRect(mapX(leg2X + dx2), mapY(legY), PLAYER_LEG_WIDTH * z, mapH(legH));
   }
@@ -253,7 +273,7 @@ export class Player {
   ): void {
     const { armX, isRightArm } = this.armGeometry(isFrontRight, "back");
     const dx = isRightArm ? armDx2 : armDx1;
-    ctx.fillStyle = PLAYER_COLORS.braco;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.braco);
     ctx.fillRect(mapX(armX + dx), mapY(PLAYER_HEAD_HEIGHT + armYOffset), PLAYER_ARM_WIDTH * z, mapH(PLAYER_ARM_HEIGHT));
   }
 
@@ -278,7 +298,7 @@ export class Player {
     const armLen = PLAYER_ARM_HEIGHT * z;
     const armW = PLAYER_ARM_WIDTH * z;
 
-    ctx.fillStyle = PLAYER_COLORS.braco;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.braco);
     ctx.save();
     ctx.translate(shoulderX, shoulderY);
     if (this.mining) {

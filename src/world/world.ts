@@ -6,6 +6,7 @@ import {
   WORLD_WIDTH_TILES,
 } from "../config";
 import { Chunk, CHUNK_PX } from "./chunk";
+import { Lighting } from "./light";
 import { TileType } from "./tiles";
 import type { Camera } from "../engine/camera";
 
@@ -17,6 +18,8 @@ export class World {
   readonly heightPx = WORLD_HEIGHT_TILES * TILE_SIZE;
   readonly tiles = new Uint8Array(WORLD_WIDTH_TILES * WORLD_HEIGHT_TILES);
   readonly surfaceHeight = new Int16Array(WORLD_WIDTH_TILES); // y da grama por coluna
+  readonly torches = new Set<number>(); // índices (y*w+x) das tochas colocadas
+  readonly lighting = new Lighting(this);
 
   private readonly chunksX = Math.ceil(WORLD_WIDTH_TILES / CHUNK_SIZE_TILES);
   private readonly chunksY = Math.ceil(WORLD_HEIGHT_TILES / CHUNK_SIZE_TILES);
@@ -30,7 +33,13 @@ export class World {
 
   setTile(x: number, y: number, tile: TileType): void {
     if (x < 0 || y < 0 || x >= this.widthTiles || y >= this.heightTiles) return;
-    this.tiles[y * this.widthTiles + x] = tile;
+    const idx = y * this.widthTiles + x;
+    const old = this.tiles[idx];
+    if (old === tile) return;
+    this.tiles[idx] = tile;
+    if (old === TileType.TOCHA) this.torches.delete(idx);
+    if (tile === TileType.TOCHA) this.torches.add(idx);
+    this.lighting.onTileChanged(x, y);
     this.markDirty(x, y);
     this.markDirty(x, y + 1); // o tile abaixo pode ganhar/perder a borda clara
   }

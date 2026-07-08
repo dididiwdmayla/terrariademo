@@ -23,6 +23,9 @@ src/
     world.ts             Armazenamento do mundo em tiles + culling/cache de chunks visíveis
     chunk.ts            Chunk 32x32 com canvas offscreen cacheado (redesenha só quando sujo)
     tiles.ts              Enum de tiles + tabela de propriedades (sólido, cor, dureza) + paletas
+    light.ts              Iluminação por tile (níveis 0-15, BFS céu/tochas, relight incremental, overlay suave)
+    daynight.ts        Ciclo dia/noite (relógio, cor do céu por keyframes, estrelas procedurais)
+    torches.ts          Desenho dinâmico das tochas (chama com flicker procedural)
   player/
     player.ts            Estado do jogador + desenho procedural
     physics.ts           Física de plataforma (gravidade, aceleração/fricção, pulo variável, coyote time, colisão AABB por eixo)
@@ -48,5 +51,6 @@ src/
 - [x] Fase 4 — Player (movimento com aceleração/fricção, gravidade, pulo variável com coyote time, colisão AABB por eixo, câmera com follow suavizado; terreno da superfície suavizado p/ degraus de 1 tile)
 - [x] Fase 5 — UI/HUD (vida, inventário, hotbar) — barra de vida com HP atual/máximo, hotbar de 9 slots
 - [x] Fase 6 — Gameplay (mineração, construção, itens) — mira por alcance, mineração com rachaduras em 3 estágios, construção em tile de ar adjacente a sólido sem sobrepor o player, inventário simples integrado à hotbar
+- [x] Fase 7 — Iluminação (luz por tile 0-15 via BFS em dois canais céu/blocos, relight incremental por caixa, tocha colocável com chama em flicker, overlay de escuridão suavizado, ciclo dia/noite de 10 min com crepúsculo e estrelas procedurais)
 
 > Atualize esta seção ao final de cada fase concluída, marcando o item correspondente.

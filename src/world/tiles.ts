@@ -17,9 +17,10 @@ export enum TileType {
   MINERIO_FERRO = 7,
   MINERIO_OURO = 8,
   BEDROCK = 9,
+  TOCHA = 10,
 }
 
-export const TILE_COUNT = 10;
+export const TILE_COUNT = 11;
 
 export interface TileProps {
   solido: boolean;
@@ -38,9 +39,10 @@ export const TILE_PROPS: Readonly<Record<TileType, TileProps>> = {
   [TileType.MINERIO_FERRO]: { solido: true, cor: TILE_COLORS.MINERIO_FERRO, dureza: TILE_HARDNESS.MINERIO_FERRO },
   [TileType.MINERIO_OURO]: { solido: true, cor: TILE_COLORS.MINERIO_OURO, dureza: TILE_HARDNESS.MINERIO_OURO },
   [TileType.BEDROCK]: { solido: true, cor: TILE_COLORS.BEDROCK, dureza: TILE_HARDNESS.BEDROCK },
+  [TileType.TOCHA]: { solido: false, cor: TILE_COLORS.TOCHA, dureza: TILE_HARDNESS.TOCHA },
 };
 
-function shade(hex: string, factor: number): string {
+export function shade(hex: string, factor: number): string {
   const n = parseInt(hex.slice(1), 16);
   const r = Math.min(255, Math.round(((n >> 16) & 0xff) * factor));
   const g = Math.min(255, Math.round(((n >> 8) & 0xff) * factor));
@@ -74,6 +76,7 @@ export const TILE_DROP: Readonly<Record<TileType, TileType>> = {
   [TileType.MINERIO_FERRO]: TileType.MINERIO_FERRO,
   [TileType.MINERIO_OURO]: TileType.MINERIO_OURO,
   [TileType.BEDROCK]: TileType.BEDROCK,
+  [TileType.TOCHA]: TileType.TOCHA,
 };
 
 export const TILE_VARIANTS: ReadonlyArray<readonly string[]> = variants;

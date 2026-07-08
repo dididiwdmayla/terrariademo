@@ -49,8 +49,9 @@ export class Chunk {
         const tile = world.getTile(wx, wy);
         const variant = tileHash(wx, wy) % nVariants;
 
-        if (tile === TileType.AR) {
-          // ar acima da superfície fica transparente (céu); abaixo, fundo de caverna
+        if (tile === TileType.AR || tile === TileType.TOCHA) {
+          // ar acima da superfície fica transparente (céu); abaixo, fundo de
+          // caverna. A tocha é desenhada dinamicamente (flicker) fora do cache.
           if (wy > world.surfaceHeight[wx]) {
             ctx.fillStyle = CAVE_BG_VARIANTS[variant];
             ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
