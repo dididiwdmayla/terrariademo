@@ -11,7 +11,8 @@ export const WORLD_SEED = 1337;
 export const SURFACE_BASE_Y = 110; // linha média da superfície, em tiles
 export const SURFACE_AMPLITUDE = 36; // meia-altura das colinas, em tiles
 export const SURFACE_WAVELENGTH = 120; // largura característica das colinas, em tiles
-export const SURFACE_OCTAVES = 4;
+export const SURFACE_OCTAVES = 6;
+export const SURFACE_MAX_STEP = 1; // diferença máxima de altura entre colunas vizinhas, em tiles
 export const SURFACE_PERSISTENCE = 0.5;
 export const SURFACE_MIN_Y = 20; // clamp de segurança da superfície
 export const SURFACE_MAX_Y = 220;
@@ -72,19 +73,40 @@ export const TILE_HARDNESS = {
 
 // --- Câmera / Render ---
 export const CAMERA_ZOOM = 2;
-export const CAMERA_PAN_SPEED = 700; // px de mundo por segundo (modo câmera livre)
-export const CAMERA_PAN_FAST_MULT = 3; // multiplicador segurando Shift
+export const CAMERA_FOLLOW_SPEED = 8; // taxa do lerp de seguir o player (1/s)
 export const CHUNK_CACHE_MAX = 160; // chunks com canvas cacheado antes de evicção
 
 // --- Física ---
-export const GRAVITY = 1200; // px/s^2
-export const MAX_FALL_SPEED = 1000; // px/s
+export const GRAVITY = 1500; // px/s^2
+export const MAX_FALL_SPEED = 900; // px/s (velocidade terminal; < TILE_SIZE por step de 1/60s)
+export const PHYSICS_EPS = 0.001; // folga p/ bordas de tile na colisão AABB
 
-// --- Player ---
-export const PLAYER_WIDTH = 20; // px
-export const PLAYER_HEIGHT = 40; // px
-export const PLAYER_MOVE_SPEED = 200; // px/s
-export const PLAYER_JUMP_SPEED = 480; // px/s
+// --- Player: dimensões (2 tiles de altura x ~1.2 de largura) ---
+export const PLAYER_WIDTH = 19; // px
+export const PLAYER_HEIGHT = 32; // px
+
+// --- Player: movimento ---
+export const PLAYER_MOVE_SPEED = 220; // px/s, velocidade horizontal máxima
+export const PLAYER_GROUND_ACCEL = 2600; // px/s^2
+export const PLAYER_AIR_ACCEL = 1400; // px/s^2
+export const PLAYER_GROUND_FRICTION = 2200; // px/s^2, desaceleração sem input no chão
+export const PLAYER_AIR_FRICTION = 250; // px/s^2, desaceleração sem input no ar
+export const PLAYER_JUMP_SPEED = 460; // px/s (~4.4 tiles de altura de pulo)
+export const PLAYER_JUMP_CUT_SPEED = 140; // px/s, teto da subida ao soltar o pulo (altura variável)
+export const PLAYER_COYOTE_TIME = 0.1; // segundos de pulo permitido após sair do chão
+
+// --- Player: visual (desenho procedural) ---
+export const PLAYER_COLORS = {
+  corpo: "#3b6ea5",
+  cabeca: "#e8b98a",
+  olho: "#1c1c1c",
+} as const;
+export const PLAYER_HEAD_HEIGHT = 12; // px
+export const PLAYER_EYE_Y = 4; // px a partir do topo da cabeça
+export const PLAYER_EYE_W = 2; // px
+export const PLAYER_EYE_H = 3; // px
+export const PLAYER_EYE_X1 = 10; // px da borda esquerda, olhando p/ direita
+export const PLAYER_EYE_X2 = 15;
 
 // --- Game loop ---
 export const FIXED_TIMESTEP = 1 / 60; // segundos

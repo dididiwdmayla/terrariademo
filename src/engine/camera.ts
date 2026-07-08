@@ -17,6 +17,14 @@ export class Camera {
     this.y = worldY - viewportHeight / (2 * this.zoom);
   }
 
+  // segue um alvo com suavização exponencial (alpha em [0,1] por step)
+  follow(worldX: number, worldY: number, viewportWidth: number, viewportHeight: number, alpha: number): void {
+    const targetX = worldX - viewportWidth / (2 * this.zoom);
+    const targetY = worldY - viewportHeight / (2 * this.zoom);
+    this.x += (targetX - this.x) * alpha;
+    this.y += (targetY - this.y) * alpha;
+  }
+
   clampToWorld(worldPxWidth: number, worldPxHeight: number, viewportWidth: number, viewportHeight: number): void {
     const viewW = viewportWidth / this.zoom;
     const viewH = viewportHeight / this.zoom;

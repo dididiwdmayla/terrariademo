@@ -12,6 +12,7 @@ import {
   ORE_OURO,
   SURFACE_AMPLITUDE,
   SURFACE_BASE_Y,
+  SURFACE_MAX_STEP,
   SURFACE_MAX_Y,
   SURFACE_MIN_Y,
   SURFACE_OCTAVES,
@@ -82,11 +83,21 @@ function gerarSuperficie(world: World, seed: number): Int16Array {
   const tiles = world.tiles;
   const stoneTop = new Int16Array(w);
 
+  const heights = new Int16Array(w);
   for (let x = 0; x < w; x++) {
     const n = octaveNoise1D(x / SURFACE_WAVELENGTH, seed, SURFACE_OCTAVES, SURFACE_PERSISTENCE);
-    let surfY = Math.round(SURFACE_BASE_Y + (n - 0.5) * 2 * SURFACE_AMPLITUDE);
-    surfY = Math.min(SURFACE_MAX_Y, Math.max(SURFACE_MIN_Y, surfY));
+    const surfY = Math.round(SURFACE_BASE_Y + (n - 0.5) * 2 * SURFACE_AMPLITUDE);
+    heights[x] = Math.min(SURFACE_MAX_Y, Math.max(SURFACE_MIN_Y, surfY));
+  }
+  // suaviza degraus: limita a diferença entre colunas vizinhas a SURFACE_MAX_STEP
+  for (let x = 1; x < w; x++) {
+    const min = heights[x - 1] - SURFACE_MAX_STEP;
+    const max = heights[x - 1] + SURFACE_MAX_STEP;
+    heights[x] = Math.min(max, Math.max(min, heights[x]));
+  }
 
+  for (let x = 0; x < w; x++) {
+    const surfY = heights[x];
     const dirtN = octaveNoise1D(x / DIRT_WAVELENGTH, seed + 7777, 2, 0.5);
     const dirtRange = DIRT_DEPTH_MAX - DIRT_DEPTH_MIN;
     const dirt = DIRT_DEPTH_MIN + Math.min(dirtRange, Math.floor(dirtN * (dirtRange + 1)));

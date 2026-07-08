@@ -3,10 +3,11 @@ import { Camera } from "./engine/camera";
 import { Input } from "./engine/input";
 import { World } from "./world/world";
 import { generateWorld } from "./world/gen";
+import { Player } from "./player/player";
+import { stepPlayer, type Controls } from "./player/physics";
 import { Hud } from "./ui/hud";
 import {
-  CAMERA_PAN_FAST_MULT,
-  CAMERA_PAN_SPEED,
+  CAMERA_FOLLOW_SPEED,
   FIXED_TIMESTEP,
   MAX_FRAME_DELTA,
   TILE_SIZE,
@@ -22,27 +23,26 @@ const hud = new Hud();
 const world = new World();
 generateWorld(world, WORLD_SEED);
 
-// câmera começa na superfície, no meio do mundo
+// spawn na superfície, no centro do mundo
+const player = new Player();
 const midX = world.widthTiles >> 1;
-camera.centerOn(midX * TILE_SIZE, world.surfaceHeight[midX] * TILE_SIZE, window.innerWidth, window.innerHeight);
+player.x = midX * TILE_SIZE - player.width / 2;
+player.y = world.surfaceHeight[midX] * TILE_SIZE - player.height;
+
+camera.centerOn(player.x + player.width / 2, player.y + player.height / 2, window.innerWidth, window.innerHeight);
 camera.clampToWorld(world.widthPx, world.heightPx, window.innerWidth, window.innerHeight);
 
 function update(dt: number): void {
-  // câmera livre por WASD/setas (sem player ainda)
-  let dx = 0;
-  let dy = 0;
-  if (input.isDown("KeyA") || input.isDown("ArrowLeft")) dx -= 1;
-  if (input.isDown("KeyD") || input.isDown("ArrowRight")) dx += 1;
-  if (input.isDown("KeyW") || input.isDown("ArrowUp")) dy -= 1;
-  if (input.isDown("KeyS") || input.isDown("ArrowDown")) dy += 1;
+  const controls: Controls = {
+    left: input.isDown("KeyA") || input.isDown("ArrowLeft"),
+    right: input.isDown("KeyD") || input.isDown("ArrowRight"),
+    jump: input.isDown("Space") || input.isDown("KeyW") || input.isDown("ArrowUp"),
+  };
+  stepPlayer(player, world, controls, dt);
 
-  if (dx !== 0 || dy !== 0) {
-    const fast = input.isDown("ShiftLeft") || input.isDown("ShiftRight") ? CAMERA_PAN_FAST_MULT : 1;
-    const diagonal = dx !== 0 && dy !== 0 ? Math.SQRT1_2 : 1;
-    const speed = CAMERA_PAN_SPEED * fast * diagonal;
-    camera.x += dx * speed * dt;
-    camera.y += dy * speed * dt;
-  }
+  // câmera segue o player com suavização e clamp nos limites do mundo
+  const alpha = 1 - Math.exp(-CAMERA_FOLLOW_SPEED * dt);
+  camera.follow(player.x + player.width / 2, player.y + player.height / 2, window.innerWidth, window.innerHeight, alpha);
   camera.clampToWorld(world.widthPx, world.heightPx, window.innerWidth, window.innerHeight);
 }
 
@@ -51,6 +51,7 @@ let fps = 0;
 function render(): void {
   renderer.clear();
   world.drawVisible(renderer.ctx, camera, window.innerWidth, window.innerHeight);
+  player.render(renderer.ctx, camera);
   hud.render(renderer.ctx, fps);
 }
 

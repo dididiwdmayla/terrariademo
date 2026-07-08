@@ -12,21 +12,22 @@ Superfície: GUI no navegador (Canvas). Verificar = subir o dev server, dirigir 
 1. Dev server (background): `npx vite --port 5173 --strictPort`
 2. Playwright: instalar `playwright-core` no scratchpad (NÃO no projeto) e lançar com
    `executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"` e `args: ["--no-sandbox"]`.
-3. Dirigir por teclado: `page.keyboard.down/up("KeyW"|"KeyA"|"KeyS"|"KeyD"|"ShiftLeft")`.
-   Câmera livre anda a `CAMERA_PAN_SPEED` px/s (x3 com Shift) — ver `src/config.ts`.
+3. Dirigir por teclado: A/D ou setas movem o player, Espaço/W/Seta-cima pula
+   (`page.keyboard.down/up("KeyA"|"KeyD"|"Space")`). A câmera segue o player com lerp.
 4. Screenshots com `page.screenshot()` e ler as imagens para inspecionar.
 5. FPS real: contar frames de `requestAnimationFrame` por 2s via `page.evaluate` (o HUD também mostra fps no canto).
 6. Capturar `pageerror`/`console.error` — favicon.ico dá um 404 conhecido e inofensivo.
 
 ## Fluxos que valem dirigir
 
-- Superfície no spawn (meio do mundo): colinas, grama com borda clara, camada de terra.
-- Descida lenta (S sem Shift, screenshots a cada ~1s): transição terra→pedra, cobre raso, ferro médio.
-- Fundo (Shift+S até clampar): cavernas grandes, ouro, linha de bedrock.
-- Bordas do mundo (A/D segurado): clamp da câmera sem faixas fora do mundo.
-- Resize do viewport com o jogo rodando.
+- Spawn (superfície, meio do mundo): player parado sobre a grama, câmera centrada.
+- Andar (A/D segurado) e pular colinas (D + taps de Espaço): sem atravessar tile nem prender em quina.
+- Pulo tap vs hold: screenshot ~280ms após o press — tap já aterrissou, hold está no ar (altura variável).
+- Anti-jitter: parado, dois `page.screenshot()` com 1s de intervalo devem ser buffers idênticos (`buf1.equals(buf2)`).
+- Spam de pulo+direção alternando A/D contra o terreno: estado final limpo, sem clipping.
 
 ## Gotchas
 
-- Com Shift, a câmera cruza o mundo verticalmente em ~2s — screenshots consecutivos no fundo saem idênticos (clamp). Para ver profundidades médias, descer SEM Shift.
 - Mundo é determinístico por `WORLD_SEED`: as mesmas capturas devem sair iguais entre execuções.
+- Terreno tem degraus de no máximo 1 tile (`SURFACE_MAX_STEP`); o player NÃO tem auto step-up — subir degrau exige pulo.
+- Constantes de física/câmera em `src/config.ts` (player anda a `PLAYER_MOVE_SPEED` px/s).

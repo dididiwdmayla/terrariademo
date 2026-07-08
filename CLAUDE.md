@@ -24,8 +24,8 @@ src/
     chunk.ts            Chunk 32x32 com canvas offscreen cacheado (redesenha só quando sujo)
     tiles.ts              Enum de tiles + tabela de propriedades (sólido, cor, dureza) + paletas
   player/
-    player.ts            Estado do jogador
-    physics.ts           Gravidade, movimento, colisão
+    player.ts            Estado do jogador + desenho procedural
+    physics.ts           Física de plataforma (gravidade, aceleração/fricção, pulo variável, coyote time, colisão AABB por eixo)
   ui/
     hud.ts                Interface (barra de vida, inventário, etc.)
 ```
@@ -43,7 +43,7 @@ src/
 - [x] Fase 1 — Setup do projeto (Vite + TS + estrutura de pastas + canvas fullscreen + game loop + retângulo de teste)
 - [x] Fase 2 — Engine core (camera com clamp e movimento livre WASD/setas, input, renderer integrados)
 - [x] Fase 3 — Geração de mundo (tiles com propriedades, chunks cacheados com culling, colinas por value noise 1D, cavernas por cellular automata, minérios por random walk, bedrock)
-- [ ] Fase 4 — Player (movimento, física, colisão com o mundo)
+- [x] Fase 4 — Player (movimento com aceleração/fricção, gravidade, pulo variável com coyote time, colisão AABB por eixo, câmera com follow suavizado; terreno da superfície suavizado p/ degraus de 1 tile)
 - [ ] Fase 5 — UI/HUD (vida, inventário, hotbar)
 - [ ] Fase 6 — Gameplay (mineração, construção, itens)
 
