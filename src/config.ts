@@ -94,6 +94,7 @@ export const PLAYER_AIR_FRICTION = 250; // px/s^2, desaceleração sem input no 
 export const PLAYER_JUMP_SPEED = 460; // px/s (~4.4 tiles de altura de pulo)
 export const PLAYER_JUMP_CUT_SPEED = 140; // px/s, teto da subida ao soltar o pulo (altura variável)
 export const PLAYER_COYOTE_TIME = 0.1; // segundos de pulo permitido após sair do chão
+export const PLAYER_MAX_HP = 100;
 
 // --- Player: visual (desenho procedural) ---
 export const PLAYER_COLORS = {
@@ -116,6 +117,16 @@ export const MAX_FRAME_DELTA = 0.25; // segundos, clamp p/ evitar spiral of deat
 export const HUD_FONT = "12px monospace";
 export const HUD_TEXT_COLOR = "#ffffff";
 export const HUD_TEXT_SHADOW = "rgba(0, 0, 0, 0.7)";
+
+// --- HUD: barra de vida ---
+export const HEALTH_BAR_WIDTH = 160; // px de tela
+export const HEALTH_BAR_HEIGHT = 14;
+export const HEALTH_BAR_MARGIN = 10; // margem do canto superior esquerdo
+export const HEALTH_BAR_BG_COLOR = "rgba(20, 20, 24, 0.65)";
+export const HEALTH_BAR_BORDER_COLOR = "rgba(255, 255, 255, 0.3)";
+export const HEALTH_BAR_FILL_COLOR = "#c0392b";
+export const HEALTH_BAR_FILL_LOW_COLOR = "#7a1f17"; // abaixo de HEALTH_BAR_LOW_THRESHOLD
+export const HEALTH_BAR_LOW_THRESHOLD = 0.3; // fração de vida p/ trocar de cor
 
 // --- Mineração / Construção ---
 export const MINE_RANGE_TILES = 5; // alcance do mouse, em tiles a partir do centro do player

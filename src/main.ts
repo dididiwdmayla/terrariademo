@@ -65,7 +65,7 @@ function render(): void {
   world.drawVisible(renderer.ctx, camera, window.innerWidth, window.innerHeight);
   player.render(renderer.ctx, camera);
   interaction.render(renderer.ctx, camera);
-  hud.render(renderer.ctx, fps, inventory);
+  hud.render(renderer.ctx, fps, inventory, player);
 }
 
 let accumulator = 0;

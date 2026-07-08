@@ -7,6 +7,7 @@ import {
   PLAYER_EYE_Y,
   PLAYER_HEAD_HEIGHT,
   PLAYER_HEIGHT,
+  PLAYER_MAX_HP,
   PLAYER_WIDTH,
 } from "../config";
 import type { Camera } from "../engine/camera";
@@ -21,6 +22,8 @@ export class Player {
   grounded = false;
   coyoteTimer = 0;
   jumpHeld = false;
+  hp = PLAYER_MAX_HP;
+  readonly maxHp = PLAYER_MAX_HP;
   readonly width = PLAYER_WIDTH;
   readonly height = PLAYER_HEIGHT;
 
