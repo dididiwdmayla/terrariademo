@@ -30,6 +30,10 @@ import {
   PLAYER_MOUTH_W,
   PLAYER_MOUTH_Y,
   PLAYER_MOVE_SPEED,
+  PLAYER_PUPIL_COLOR,
+  PLAYER_PUPIL_H,
+  PLAYER_PUPIL_OFFSET,
+  PLAYER_PUPIL_W,
   PLAYER_TORSO_HEIGHT,
   PLAYER_TORSO_WIDTH,
   PLAYER_WALK_ARM_SWING,
@@ -178,6 +182,18 @@ export class Player {
     const eyeY = headY + PLAYER_EYE_Y + (PLAYER_EYE_H - eyeH);
     ctx.fillRect(mapX(eye1), mapY(eyeY), PLAYER_EYE_W * z, mapH(eyeH));
     ctx.fillRect(mapX(eye2), mapY(eyeY), PLAYER_EYE_W * z, mapH(eyeH));
+
+    // pupilas: deslocam sutilmente em direção ao cursor, clampadas às bordas do olho; somem ao piscar
+    if (!this.blinking) {
+      const maxDx = (PLAYER_EYE_W - PLAYER_PUPIL_W) / 2;
+      const maxDy = (PLAYER_EYE_H - PLAYER_PUPIL_H) / 2;
+      const dx = Math.max(-maxDx, Math.min(maxDx, Math.cos(this.mineAngle) * PLAYER_PUPIL_OFFSET));
+      const dy = Math.max(-maxDy, Math.min(maxDy, Math.sin(this.mineAngle) * PLAYER_PUPIL_OFFSET));
+      const pupilCenterY = eyeY + PLAYER_EYE_H / 2 + dy - PLAYER_PUPIL_H / 2;
+      ctx.fillStyle = PLAYER_PUPIL_COLOR;
+      ctx.fillRect(mapX(eye1 + PLAYER_EYE_W / 2 - PLAYER_PUPIL_W / 2 + dx), mapY(pupilCenterY), PLAYER_PUPIL_W * z, mapH(PLAYER_PUPIL_H));
+      ctx.fillRect(mapX(eye2 + PLAYER_EYE_W / 2 - PLAYER_PUPIL_W / 2 + dx), mapY(pupilCenterY), PLAYER_PUPIL_W * z, mapH(PLAYER_PUPIL_H));
+    }
 
     // boca simples
     const mouthX = this.width / 2 - PLAYER_MOUTH_W / 2;
