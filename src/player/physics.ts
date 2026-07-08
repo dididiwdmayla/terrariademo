@@ -5,6 +5,7 @@ import {
   PLAYER_AIR_ACCEL,
   PLAYER_AIR_FRICTION,
   PLAYER_COYOTE_TIME,
+  PLAYER_CROUCH_SPEED_MULT,
   PLAYER_GROUND_ACCEL,
   PLAYER_GROUND_FRICTION,
   PLAYER_JUMP_CUT_SPEED,
@@ -20,6 +21,7 @@ export interface Controls {
   left: boolean;
   right: boolean;
   jump: boolean;
+  crouch: boolean;
 }
 
 function rectHitsSolid(world: World, x: number, y: number, w: number, h: number): boolean {
@@ -40,10 +42,11 @@ function rectHitsSolid(world: World, x: number, y: number, w: number, h: number)
 export function stepPlayer(player: Player, world: World, controls: Controls, dt: number): void {
   // --- horizontal: aceleração com input, fricção sem ---
   const dir: 1 | 0 | -1 = controls.right === controls.left ? 0 : controls.right ? 1 : -1;
+  const maxSpeed = controls.crouch && player.grounded ? PLAYER_MOVE_SPEED * PLAYER_CROUCH_SPEED_MULT : PLAYER_MOVE_SPEED;
   if (dir !== 0) {
     const accel = player.grounded ? PLAYER_GROUND_ACCEL : PLAYER_AIR_ACCEL;
     player.vx += dir * accel * dt;
-    player.vx = Math.max(-PLAYER_MOVE_SPEED, Math.min(PLAYER_MOVE_SPEED, player.vx));
+    player.vx = Math.max(-maxSpeed, Math.min(maxSpeed, player.vx));
     player.facing = dir;
   } else {
     const friction = (player.grounded ? PLAYER_GROUND_FRICTION : PLAYER_AIR_FRICTION) * dt;

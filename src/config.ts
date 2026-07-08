@@ -96,18 +96,55 @@ export const PLAYER_JUMP_CUT_SPEED = 140; // px/s, teto da subida ao soltar o pu
 export const PLAYER_COYOTE_TIME = 0.1; // segundos de pulo permitido após sair do chão
 export const PLAYER_MAX_HP = 100;
 
-// --- Player: visual (desenho procedural) ---
+// --- Player: agachar (apenas visual + velocidade; hitbox não muda) ---
+export const PLAYER_CROUCH_SPEED_MULT = 0.5; // fração de PLAYER_MOVE_SPEED ao agachar no chão
+export const PLAYER_CROUCH_HEIGHT_MULT = 0.7; // fração da altura visual ao agachar
+
+// --- Player: visual (desenho procedural articulado) ---
 export const PLAYER_COLORS = {
   corpo: "#3b6ea5",
   cabeca: "#e8b98a",
   olho: "#1c1c1c",
+  cabelo: "#3a2a1e",
+  boca: "#7a4a3a",
+  braco: "#d1a173",
+  perna: "#2e4a63",
 } as const;
 export const PLAYER_HEAD_HEIGHT = 12; // px
+export const PLAYER_HAIR_HEIGHT = 3; // px, faixa de cabelo no topo da cabeça
 export const PLAYER_EYE_Y = 4; // px a partir do topo da cabeça
 export const PLAYER_EYE_W = 2; // px
 export const PLAYER_EYE_H = 3; // px
 export const PLAYER_EYE_X1 = 10; // px da borda esquerda, olhando p/ direita
 export const PLAYER_EYE_X2 = 15;
+export const PLAYER_MOUTH_Y = 9; // px a partir do topo da cabeça
+export const PLAYER_MOUTH_W = 4; // px
+export const PLAYER_MOUTH_H = 1; // px
+
+// --- Player: proporções do corpo articulado ---
+export const PLAYER_TORSO_HEIGHT = 10; // px
+export const PLAYER_TORSO_WIDTH = 13; // px
+export const PLAYER_LEG_HEIGHT = 10; // px (head + torso + leg = PLAYER_HEIGHT)
+export const PLAYER_LEG_WIDTH = 8; // px, cada perna
+export const PLAYER_LEG_GAP = 3; // px entre as pernas
+export const PLAYER_ARM_WIDTH = 5; // px
+export const PLAYER_ARM_HEIGHT = 14; // px
+
+// --- Player: animação ---
+export const PLAYER_IDLE_BREATH_SPEED = 1.2; // ciclos/s da respiração parado
+export const PLAYER_IDLE_BREATH_AMPLITUDE = 1; // px de deslocamento do tronco/cabeça
+export const PLAYER_BLINK_MIN_INTERVAL = 2; // s, intervalo mínimo entre piscadas
+export const PLAYER_BLINK_MAX_INTERVAL = 5; // s, intervalo máximo entre piscadas
+export const PLAYER_BLINK_DURATION = 0.12; // s, duração do olho fechado
+export const PLAYER_WALK_CYCLE_SPEED = 9; // ciclos/s do balanço de perna/braço na velocidade máxima
+export const PLAYER_WALK_LEG_SWING = 4; // px de amplitude horizontal da perna ao andar
+export const PLAYER_WALK_ARM_SWING = 4; // px de amplitude horizontal do braço ao andar
+export const PLAYER_JUMP_LEG_BEND = 4; // px de encolhimento das pernas ao pular
+export const PLAYER_JUMP_ARM_RAISE = 4; // px de elevação dos braços ao pular
+export const PLAYER_FALL_ARM_SPREAD = 5; // px de abertura dos braços ao cair
+export const PLAYER_FALL_LEG_SPREAD = 2; // px de abertura das pernas ao cair
+export const PLAYER_MINE_SWING_SPEED = 7; // ciclos/s do golpe de mineração
+export const PLAYER_MINE_SWING_AMPLITUDE = 0.8; // rad de amplitude do golpe em torno do cursor
 
 // --- Game loop ---
 export const FIXED_TIMESTEP = 1 / 60; // segundos

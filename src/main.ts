@@ -37,10 +37,12 @@ camera.centerOn(player.x + player.width / 2, player.y + player.height / 2, windo
 camera.clampToWorld(world.widthPx, world.heightPx, window.innerWidth, window.innerHeight);
 
 function update(dt: number): void {
+  const crouch = input.isDown("KeyS") || input.isDown("ArrowDown");
   const controls: Controls = {
     left: input.isDown("KeyA") || input.isDown("ArrowLeft"),
     right: input.isDown("KeyD") || input.isDown("ArrowRight"),
     jump: input.isDown("Space") || input.isDown("KeyW") || input.isDown("ArrowUp"),
+    crouch,
   };
   stepPlayer(player, world, controls, dt);
 
@@ -56,6 +58,10 @@ function update(dt: number): void {
   if (wheelDelta !== 0) inventory.scroll(wheelDelta);
 
   interaction.update(dt, input, camera, world, player, inventory);
+
+  const playerScreen = camera.worldToScreen(player.x + player.width / 2, player.y + player.height / 2);
+  const mineAngle = Math.atan2(input.mouseY - playerScreen.y, input.mouseX - playerScreen.x);
+  player.update(dt, crouch, interaction.isMining(), mineAngle);
 }
 
 let fps = 0;

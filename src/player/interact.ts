@@ -20,6 +20,10 @@ export class Interaction {
   targetTy = 0;
   targetInRange = false;
 
+  isMining(): boolean {
+    return this.mineTx !== -1;
+  }
+
   private mineTx = -1;
   private mineTy = -1;
   private mineProgress = 0;
