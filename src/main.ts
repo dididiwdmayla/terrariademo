@@ -5,6 +5,8 @@ import { World } from "./world/world";
 import { generateWorld } from "./world/gen";
 import { Player } from "./player/player";
 import { stepPlayer, type Controls } from "./player/physics";
+import { Inventory } from "./player/inventory";
+import { Interaction } from "./player/interact";
 import { Hud } from "./ui/hud";
 import {
   CAMERA_FOLLOW_SPEED,
@@ -17,8 +19,10 @@ import {
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 const camera = new Camera();
-const input = new Input();
+const input = new Input(canvas);
 const hud = new Hud();
+const inventory = new Inventory();
+const interaction = new Interaction();
 
 const world = new World();
 generateWorld(world, WORLD_SEED);
@@ -44,6 +48,14 @@ function update(dt: number): void {
   const alpha = 1 - Math.exp(-CAMERA_FOLLOW_SPEED * dt);
   camera.follow(player.x + player.width / 2, player.y + player.height / 2, window.innerWidth, window.innerHeight, alpha);
   camera.clampToWorld(world.widthPx, world.heightPx, window.innerWidth, window.innerHeight);
+
+  for (let i = 0; i < 9; i++) {
+    if (input.isDown(`Digit${i + 1}`)) inventory.select(i);
+  }
+  const wheelDelta = input.consumeWheelDelta();
+  if (wheelDelta !== 0) inventory.scroll(wheelDelta);
+
+  interaction.update(dt, input, camera, world, player, inventory);
 }
 
 let fps = 0;
@@ -52,7 +64,8 @@ function render(): void {
   renderer.clear();
   world.drawVisible(renderer.ctx, camera, window.innerWidth, window.innerHeight);
   player.render(renderer.ctx, camera);
-  hud.render(renderer.ctx, fps);
+  interaction.render(renderer.ctx, camera);
+  hud.render(renderer.ctx, fps, inventory);
 }
 
 let accumulator = 0;

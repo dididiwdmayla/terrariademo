@@ -116,3 +116,23 @@ export const MAX_FRAME_DELTA = 0.25; // segundos, clamp p/ evitar spiral of deat
 export const HUD_FONT = "12px monospace";
 export const HUD_TEXT_COLOR = "#ffffff";
 export const HUD_TEXT_SHADOW = "rgba(0, 0, 0, 0.7)";
+
+// --- Mineração / Construção ---
+export const MINE_RANGE_TILES = 5; // alcance do mouse, em tiles a partir do centro do player
+export const MINE_SECONDS_PER_HARDNESS = 0.35; // segundos p/ minerar por ponto de dureza
+export const MINE_CRACK_STAGES = 3;
+export const MINE_HIGHLIGHT_COLOR = "rgba(255, 255, 255, 0.85)";
+export const MINE_CRACK_COLOR = "rgba(20, 20, 20, 0.75)";
+export const PLACE_COOLDOWN = 0.15; // segundos entre colocações com botão segurado
+
+// --- Inventário / Hotbar ---
+export const INVENTORY_SLOTS = 9;
+export const INVENTORY_MAX_STACK = 999;
+export const HOTBAR_SLOT_SIZE = 40; // px de tela (não escala com o zoom da câmera)
+export const HOTBAR_SLOT_GAP = 4;
+export const HOTBAR_MARGIN_BOTTOM = 12;
+export const HOTBAR_ICON_PADDING = 6;
+export const HOTBAR_FONT = "11px monospace";
+export const HOTBAR_BG_COLOR = "rgba(20, 20, 24, 0.65)";
+export const HOTBAR_BORDER_COLOR = "rgba(255, 255, 255, 0.3)";
+export const HOTBAR_SELECTED_BORDER_COLOR = "#ffffff";

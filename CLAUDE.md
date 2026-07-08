@@ -26,8 +26,10 @@ src/
   player/
     player.ts            Estado do jogador + desenho procedural
     physics.ts           Física de plataforma (gravidade, aceleração/fricção, pulo variável, coyote time, colisão AABB por eixo)
+    inventory.ts          Inventário simples (9 slots, stack até 999)
+    interact.ts             Mira do mouse, mineração (progresso por dureza + rachaduras) e construção
   ui/
-    hud.ts                Interface (barra de vida, inventário, etc.)
+    hud.ts                Interface (fps, hotbar de 9 slots; barra de vida ainda não implementada)
 ```
 
 ## Convenções
@@ -44,7 +46,7 @@ src/
 - [x] Fase 2 — Engine core (camera com clamp e movimento livre WASD/setas, input, renderer integrados)
 - [x] Fase 3 — Geração de mundo (tiles com propriedades, chunks cacheados com culling, colinas por value noise 1D, cavernas por cellular automata, minérios por random walk, bedrock)
 - [x] Fase 4 — Player (movimento com aceleração/fricção, gravidade, pulo variável com coyote time, colisão AABB por eixo, câmera com follow suavizado; terreno da superfície suavizado p/ degraus de 1 tile)
-- [ ] Fase 5 — UI/HUD (vida, inventário, hotbar)
-- [ ] Fase 6 — Gameplay (mineração, construção, itens)
+- [ ] Fase 5 — UI/HUD (vida, inventário, hotbar) — hotbar de 9 slots pronta; falta barra de vida e tela de inventário completa
+- [x] Fase 6 — Gameplay (mineração, construção, itens) — mira por alcance, mineração com rachaduras em 3 estágios, construção em tile de ar adjacente a sólido sem sobrepor o player, inventário simples integrado à hotbar
 
 > Atualize esta seção ao final de cada fase concluída, marcando o item correspondente.

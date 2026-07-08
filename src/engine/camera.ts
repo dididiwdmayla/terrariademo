@@ -12,6 +12,13 @@ export class Camera {
     };
   }
 
+  screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+    return {
+      x: screenX / this.zoom + this.x,
+      y: screenY / this.zoom + this.y,
+    };
+  }
+
   centerOn(worldX: number, worldY: number, viewportWidth: number, viewportHeight: number): void {
     this.x = worldX - viewportWidth / (2 * this.zoom);
     this.y = worldY - viewportHeight / (2 * this.zoom);

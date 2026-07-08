@@ -62,6 +62,20 @@ for (let id = 0; id < TILE_COUNT; id++) {
   topLight.push(shade(props.cor, TILE_TOP_LIGHT_FACTOR));
 }
 
+// Tile que entra no inventário ao minerar (grama vira terra; os demais, si mesmos).
+export const TILE_DROP: Readonly<Record<TileType, TileType>> = {
+  [TileType.AR]: TileType.AR,
+  [TileType.GRAMA]: TileType.TERRA,
+  [TileType.TERRA]: TileType.TERRA,
+  [TileType.PEDRA]: TileType.PEDRA,
+  [TileType.AREIA]: TileType.AREIA,
+  [TileType.MADEIRA]: TileType.MADEIRA,
+  [TileType.MINERIO_COBRE]: TileType.MINERIO_COBRE,
+  [TileType.MINERIO_FERRO]: TileType.MINERIO_FERRO,
+  [TileType.MINERIO_OURO]: TileType.MINERIO_OURO,
+  [TileType.BEDROCK]: TileType.BEDROCK,
+};
+
 export const TILE_VARIANTS: ReadonlyArray<readonly string[]> = variants;
 export const TILE_TOP_LIGHT: readonly string[] = topLight;
 export const CAVE_BG_VARIANTS: readonly string[] = TILE_SHADE_VARIANTS.map((f) => shade(CAVE_BG_COLOR, f));
