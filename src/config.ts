@@ -234,6 +234,23 @@ export const PLAYER_FALL_LEG_SPREAD = 2; // px de abertura das pernas ao cair
 export const PLAYER_MINE_SWING_SPEED = 7; // ciclos/s do golpe de mineração
 export const PLAYER_MINE_SWING_AMPLITUDE = 0.8; // rad de amplitude do golpe em torno do cursor
 
+// --- Player: reação procedural (squash/stretch, inclinação, movimento secundário) ---
+export const PLAYER_LAND_SQUASH_DURATION = 0.1; // s, duração da recuperação elástica ao aterrissar
+export const PLAYER_LAND_SQUASH_MAX = 0.2; // fração de compressão vertical máxima (~20%)
+export const PLAYER_LAND_SQUASH_WIDEN = 0.6; // fração do squash vertical espelhada como alargamento horizontal
+export const PLAYER_JUMP_ANTICIPATION_DURATION = 0.045; // s (~2-3 frames a 60fps), agachadinha antes de subir
+export const PLAYER_JUMP_ANTICIPATION_SQUASH = 0.12; // fração de compressão vertical na antecipação
+export const PLAYER_JUMP_STRETCH_DURATION = 0.08; // s, esticada no impulso do pulo
+export const PLAYER_JUMP_STRETCH_AMOUNT = 0.1; // fração de esticada vertical máxima (~10%)
+export const PLAYER_LEAN_MAX_DEG = 6; // graus, inclinação máxima na direção do movimento
+export const PLAYER_LEAN_SMOOTH_SPEED = 10; // 1/s, taxa de suavização (lerp exponencial) da inclinação
+export const PLAYER_SECONDARY_LAG_FACTOR = 0.05; // px de offset por px/s de velocidade horizontal (alvo do spring)
+export const PLAYER_SECONDARY_MAX_OFFSET = 4; // px, clamp do offset de movimento secundário
+export const PLAYER_HAIR_SPRING_STIFFNESS = 140; // rigidez do spring do cabelo
+export const PLAYER_HAIR_SPRING_DAMPING = 12; // amortecimento do spring do cabelo
+export const PLAYER_ARM_SPRING_STIFFNESS = 200; // rigidez do spring da barra dos braços
+export const PLAYER_ARM_SPRING_DAMPING = 16; // amortecimento do spring da barra dos braços
+
 // --- Iluminação (níveis 0-15 por tile, propagados por BFS) ---
 export const LIGHT_MAX_LEVEL = 15;
 export const LIGHT_ATTENUATION_AIR = 1; // níveis perdidos ao entrar num tile de ar

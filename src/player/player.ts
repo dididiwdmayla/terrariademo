@@ -18,8 +18,17 @@ import {
   PLAYER_HEIGHT,
   PLAYER_IDLE_BREATH_AMPLITUDE,
   PLAYER_IDLE_BREATH_SPEED,
+  PLAYER_JUMP_ANTICIPATION_DURATION,
+  PLAYER_JUMP_ANTICIPATION_SQUASH,
   PLAYER_JUMP_ARM_RAISE,
   PLAYER_JUMP_LEG_BEND,
+  PLAYER_JUMP_STRETCH_AMOUNT,
+  PLAYER_JUMP_STRETCH_DURATION,
+  PLAYER_LAND_SQUASH_DURATION,
+  PLAYER_LAND_SQUASH_MAX,
+  PLAYER_LAND_SQUASH_WIDEN,
+  PLAYER_LEAN_MAX_DEG,
+  PLAYER_LEAN_SMOOTH_SPEED,
   PLAYER_LEG_GAP,
   PLAYER_LEG_HEIGHT,
   PLAYER_LEG_WIDTH,
@@ -34,12 +43,19 @@ import {
   PLAYER_PUPIL_H,
   PLAYER_PUPIL_OFFSET,
   PLAYER_PUPIL_W,
+  PLAYER_SECONDARY_LAG_FACTOR,
+  PLAYER_SECONDARY_MAX_OFFSET,
+  PLAYER_HAIR_SPRING_DAMPING,
+  PLAYER_HAIR_SPRING_STIFFNESS,
+  PLAYER_ARM_SPRING_DAMPING,
+  PLAYER_ARM_SPRING_STIFFNESS,
   PLAYER_TORSO_HEIGHT,
   PLAYER_TORSO_WIDTH,
   PLAYER_WALK_ARM_SWING,
   PLAYER_WALK_CYCLE_SPEED,
   PLAYER_WALK_LEG_SWING,
   PLAYER_WIDTH,
+  MAX_FALL_SPEED,
 } from "../config";
 import { shade } from "../world/tiles";
 import type { Camera } from "../engine/camera";
@@ -47,6 +63,25 @@ import type { Camera } from "../engine/camera";
 type AnimState = "idle" | "walking" | "jumping" | "falling" | "crouching";
 
 const BRIGHTNESS_STEPS = 31; // quantização do brilho p/ cache de cores sombreadas
+
+// facilita elástico ao voltar do squash de aterrissagem (overshoot amortecido)
+function easeOutElastic(t: number): number {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const c4 = (2 * Math.PI) / 3;
+  return 2 ** (-10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+}
+
+interface Spring {
+  pos: number;
+  vel: number;
+}
+
+function stepSpring(spring: Spring, target: number, dt: number, stiffness: number, damping: number): void {
+  const accel = (target - spring.pos) * stiffness - spring.vel * damping;
+  spring.vel += accel * dt;
+  spring.pos += spring.vel * dt;
+}
 
 // Estado do jogador + desenho procedural articulado (cabeça, tronco, braços, pernas).
 export class Player {
@@ -72,6 +107,19 @@ export class Player {
   private walkPhase = 0;
   private blinking = false;
   private blinkTimer = PLAYER_BLINK_MIN_INTERVAL;
+
+  // reação procedural: squash & stretch, inclinação, movimento secundário (não afeta física/hitbox)
+  private prevGrounded = false;
+  private lastAirVy = 0;
+  private landSquashTimer = 0;
+  private landSquashIntensity = 0;
+  private jumpAnticipationTimer = 0;
+  private jumpStretchTimer = 0;
+  private scaleX = 1;
+  private scaleY = 1;
+  private leanAngle = 0; // rad, suavizado
+  private readonly hairSpring: Spring = { pos: 0, vel: 0 };
+  private readonly armSpring: Spring = { pos: 0, vel: 0 };
 
   // Avança animação e estados visuais (agachar, mineração). Não toca em física/hitbox.
   update(dt: number, crouchHeld: boolean, mining: boolean, mineAngle: number): void {
@@ -104,6 +152,66 @@ export class Player {
         this.blinkTimer = PLAYER_BLINK_DURATION;
       }
     }
+
+    this.updateReactions(dt);
+  }
+
+  // Detecta pouso/decolagem via transição de `grounded` e conduz squash/stretch, inclinação e springs.
+  private updateReactions(dt: number): void {
+    const justLanded = !this.prevGrounded && this.grounded;
+    const justJumped = this.prevGrounded && !this.grounded && this.vy < 0;
+
+    if (justLanded) {
+      this.landSquashTimer = PLAYER_LAND_SQUASH_DURATION;
+      this.landSquashIntensity = Math.min(1, this.lastAirVy / MAX_FALL_SPEED);
+    }
+    if (justJumped) {
+      this.jumpAnticipationTimer = PLAYER_JUMP_ANTICIPATION_DURATION;
+      this.jumpStretchTimer = PLAYER_JUMP_STRETCH_DURATION;
+    }
+    if (!this.grounded) this.lastAirVy = this.vy;
+    this.prevGrounded = this.grounded;
+
+    let scaleY = 1;
+    let scaleX = 1;
+
+    if (this.landSquashTimer > 0) {
+      this.landSquashTimer = Math.max(0, this.landSquashTimer - dt);
+      const progress = 1 - this.landSquashTimer / PLAYER_LAND_SQUASH_DURATION;
+      const decay = 1 - easeOutElastic(progress);
+      const amt = this.landSquashIntensity * PLAYER_LAND_SQUASH_MAX * decay;
+      scaleY *= 1 - amt;
+      scaleX *= 1 + amt * PLAYER_LAND_SQUASH_WIDEN;
+    }
+
+    if (this.jumpAnticipationTimer > 0) {
+      this.jumpAnticipationTimer = Math.max(0, this.jumpAnticipationTimer - dt);
+      const progress = this.jumpAnticipationTimer / PLAYER_JUMP_ANTICIPATION_DURATION;
+      scaleY *= 1 - PLAYER_JUMP_ANTICIPATION_SQUASH * progress;
+      scaleX *= 1 + PLAYER_JUMP_ANTICIPATION_SQUASH * 0.5 * progress;
+    } else if (this.jumpStretchTimer > 0) {
+      this.jumpStretchTimer = Math.max(0, this.jumpStretchTimer - dt);
+      const progress = this.jumpStretchTimer / PLAYER_JUMP_STRETCH_DURATION;
+      scaleY *= 1 + PLAYER_JUMP_STRETCH_AMOUNT * progress;
+      scaleX *= 1 - PLAYER_JUMP_STRETCH_AMOUNT * 0.5 * progress;
+    }
+
+    this.scaleY = scaleY;
+    this.scaleX = scaleX;
+
+    // inclinação na direção do movimento, com retorno suave ao parar
+    const targetLeanDeg = Math.max(-1, Math.min(1, this.vx / PLAYER_MOVE_SPEED)) * PLAYER_LEAN_MAX_DEG;
+    const targetLean = (targetLeanDeg * Math.PI) / 180;
+    const leanSmooth = 1 - Math.exp(-PLAYER_LEAN_SMOOTH_SPEED * dt);
+    this.leanAngle += (targetLean - this.leanAngle) * leanSmooth;
+
+    // movimento secundário (cabelo, barra dos braços): spring com atraso/inércia atrás da velocidade horizontal
+    const secondaryTarget = Math.max(
+      -PLAYER_SECONDARY_MAX_OFFSET,
+      Math.min(PLAYER_SECONDARY_MAX_OFFSET, -this.vx * PLAYER_SECONDARY_LAG_FACTOR),
+    );
+    stepSpring(this.hairSpring, secondaryTarget, dt, PLAYER_HAIR_SPRING_STIFFNESS, PLAYER_HAIR_SPRING_DAMPING);
+    stepSpring(this.armSpring, secondaryTarget, dt, PLAYER_ARM_SPRING_STIFFNESS, PLAYER_ARM_SPRING_DAMPING);
   }
 
   // brilho local [0,1] vindo da iluminação; sombreia todas as cores do sprite
@@ -129,12 +237,23 @@ export class Player {
     const px = Math.round(s.x);
     const py = Math.round(s.y);
 
-    // agachar encolhe o desenho verticalmente ~30%, ancorado nos pés (hitbox intacta)
-    const vScale = this.state === "crouching" ? PLAYER_CROUCH_HEIGHT_MULT : 1;
+    // agachar encolhe o desenho verticalmente ~30%, ancorado nos pés (hitbox intacta);
+    // combinado com squash/stretch de pouso/pulo (também ancorado nos pés)
+    const vScale = (this.state === "crouching" ? PLAYER_CROUCH_HEIGHT_MULT : 1) * this.scaleY;
+    const hScale = this.scaleX;
+    const centerX = this.width / 2;
     const top = py + this.height * (1 - vScale) * z;
     const mapY = (localY: number) => top + localY * vScale * z;
     const mapH = (localH: number) => localH * vScale * z;
-    const mapX = (localX: number) => px + localX * z;
+    const mapX = (localX: number) => px + (centerX + (localX - centerX) * hScale) * z;
+
+    // inclinação na direção do movimento, rotacionada em torno dos pés
+    ctx.save();
+    const pivotX = px + centerX * z;
+    const pivotY = py + this.height * z;
+    ctx.translate(pivotX, pivotY);
+    ctx.rotate(this.leanAngle);
+    ctx.translate(-pivotX, -pivotY);
 
     const breathing = this.state === "idle" || this.state === "crouching";
     const breathOffset = breathing
@@ -166,6 +285,10 @@ export class Player {
       legDx2 = PLAYER_FALL_LEG_SPREAD;
     }
 
+    // movimento secundário: barra dos braços reage com atraso/inércia às mudanças de velocidade
+    armDx1 += this.armSpring.pos;
+    armDx2 += this.armSpring.pos;
+
     const isFrontRight = this.facing === 1;
 
     this.drawLegs(ctx, mapX, mapY, mapH, z, legDx1, legDx2, legHeightAdj);
@@ -173,6 +296,7 @@ export class Player {
     this.drawBackArm(ctx, mapX, mapY, mapH, z, isFrontRight, armDx1, armDx2, armYOffset);
     this.drawHead(ctx, mapX, mapY, mapH, z, breathOffset);
     this.drawFrontArm(ctx, px, top, vScale, z, isFrontRight, armDx1, armDx2, armYOffset);
+    ctx.restore();
   }
 
   private drawHead(
@@ -190,9 +314,10 @@ export class Player {
     ctx.fillStyle = this.shaded(PLAYER_COLORS.cabeca);
     ctx.fillRect(mapX(headX), mapY(headY), headW * z, mapH(PLAYER_HEAD_HEIGHT));
 
-    // cabelo
+    // cabelo: movimento secundário com atraso/inércia atrás da velocidade horizontal
+    const hairDx = this.hairSpring.pos;
     ctx.fillStyle = this.shaded(PLAYER_COLORS.cabelo);
-    ctx.fillRect(mapX(headX), mapY(headY), headW * z, mapH(PLAYER_HAIR_HEIGHT));
+    ctx.fillRect(mapX(headX + hairDx), mapY(headY), headW * z, mapH(PLAYER_HAIR_HEIGHT));
 
     // olhos virados pra direção do movimento (fecham ao piscar)
     const eye1 = this.facing === 1 ? PLAYER_EYE_X1 : this.width - PLAYER_EYE_X1 - PLAYER_EYE_W;
