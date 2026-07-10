@@ -73,6 +73,19 @@ export const TILE_HARDNESS = {
   TOCHA: 1,
 } as const;
 
+// --- Autotiling (bordas orgânicas por bitmask de vizinhança) ---
+export const EDGE_SEGMENT_PX = 4; // largura dos segmentos da aresta erodida, em px nativos
+export const EDGE_RECESS_MIN = 1; // recuo mínimo da aresta exposta ao ar, em px
+export const EDGE_RECESS_MAX = 3; // recuo máximo
+export const CORNER_CHAMFER_MIN = 3; // chanfro do canto externo (dois lados expostos), em px
+export const CORNER_CHAMFER_MAX = 4;
+export const INNER_FILLET_PX = 3; // preenchimento côncavo do canto interno (diagonal de ar), em px
+export const GRASS_DRIP_WIDTH = 2; // largura da escorrida verde na lateral do tile de terra, em px
+export const GRASS_DRIP_LEN_MIN = 2; // comprimento da escorrida, em px
+export const GRASS_DRIP_LEN_MAX = 4;
+export const GROUP_TOOTH_DEPTH_MIN = 1; // dentes da transição entre grupos (terra→pedra), em px
+export const GROUP_TOOTH_DEPTH_MAX = 2;
+
 // --- Textura procedural dos tiles (determinística por hash de posição) ---
 export const DIRT_SPECK_COUNT = 3; // pontinhos/pedrinhas por tile de terra
 export const DIRT_SPECK_SIZE = 2; // px nativos

@@ -28,6 +28,12 @@ Superfície: GUI no navegador (Canvas). Verificar = subir o dev server, dirigir 
 
 ## Gotchas
 
+- Há um handle de debug em `window.__terra` ({player, world, camera, dayNight, inventory}) —
+  use `page.evaluate` p/ ler estado real (tiles, inventário, `lighting.brightnessAt(tx, ty, skyFactor)`).
+- Botão esquerdo minera com progresso (segurar ~dureza×0.35s); botão direito coloca o item
+  selecionado. Cliques instantâneos de Playwright funcionam p/ colocar (latch no Input),
+  mas minerar exige `mouse.down` + espera + `mouse.up`.
+
 - Mundo é determinístico por `WORLD_SEED`: as mesmas capturas devem sair iguais entre execuções.
 - Terreno tem degraus de no máximo 1 tile (`SURFACE_MAX_STEP`); o player NÃO tem auto step-up — subir degrau exige pulo.
 - Constantes de física/câmera em `src/config.ts` (player anda a `PLAYER_MOVE_SPEED` px/s).

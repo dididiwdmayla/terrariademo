@@ -53,7 +53,9 @@ export class Interaction {
 
     this.updateMining(dt, input, world, tx, ty, inRange, inventory, particles);
 
-    if (input.mouseRightDown && inRange && this.placeCooldown <= 0) {
+    // o latch cobre cliques down+up mais rápidos que um passo do update
+    const rightActive = input.consumeRightPress() || input.mouseRightDown;
+    if (rightActive && inRange && this.placeCooldown <= 0) {
       if (this.tryPlace(tx, ty, world, player, inventory)) this.placeCooldown = PLACE_COOLDOWN;
     }
   }

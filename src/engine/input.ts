@@ -5,6 +5,7 @@ export class Input {
   mouseLeftDown = false;
   mouseRightDown = false;
   private wheelDelta = 0;
+  private rightPressLatch = false; // guarda cliques mais curtos que um frame
 
   constructor(canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
@@ -21,7 +22,10 @@ export class Input {
     });
     canvas.addEventListener("mousedown", (e) => {
       if (e.button === 0) this.mouseLeftDown = true;
-      if (e.button === 2) this.mouseRightDown = true;
+      if (e.button === 2) {
+        this.mouseRightDown = true;
+        this.rightPressLatch = true;
+      }
     });
     window.addEventListener("mouseup", (e) => {
       if (e.button === 0) this.mouseLeftDown = false;
@@ -39,6 +43,14 @@ export class Input {
 
   isDown(code: string): boolean {
     return this.keysDown.has(code);
+  }
+
+  // consome o clique direito registrado desde a última chamada; garante que
+  // um clique down+up mais rápido que um passo do update ainda seja visto
+  consumeRightPress(): boolean {
+    const pressed = this.rightPressLatch;
+    this.rightPressLatch = false;
+    return pressed;
   }
 
   // consome o scroll acumulado desde a última chamada (evita processar 2x por frame)

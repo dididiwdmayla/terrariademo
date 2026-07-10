@@ -40,8 +40,10 @@ export class World {
     if (old === TileType.TOCHA) this.torches.delete(idx);
     if (tile === TileType.TOCHA) this.torches.add(idx);
     this.lighting.onTileChanged(x, y);
-    this.markDirty(x, y);
-    this.markDirty(x, y + 1); // o tile abaixo pode ganhar/perder a borda clara
+    // autotiling: a aparência dos 8 vizinhos depende deste tile
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) this.markDirty(x + dx, y + dy);
+    }
   }
 
   markAllDirty(): void {
@@ -49,6 +51,7 @@ export class World {
   }
 
   private markDirty(x: number, y: number): void {
+    if (x < 0 || y < 0 || x >= this.widthTiles || y >= this.heightTiles) return;
     const cx = Math.floor(x / CHUNK_SIZE_TILES);
     const cy = Math.floor(y / CHUNK_SIZE_TILES);
     const chunk = this.chunks.get(cy * this.chunksX + cx);

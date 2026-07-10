@@ -42,6 +42,30 @@ export const TILE_PROPS: Readonly<Record<TileType, TileProps>> = {
   [TileType.TOCHA]: { solido: false, cor: TILE_COLORS.TOCHA, dureza: TILE_HARDNESS.TOCHA },
 };
 
+// Grupos de fusão do autotiling: vizinhos do mesmo grupo se conectam sem
+// borda; grupos diferentes ganham dentes de transição; ar expõe a aresta.
+export enum TileGroup {
+  NENHUM = 0,
+  SOLO, // terra + grama
+  ROCHA, // pedra + minérios + bedrock
+  AREIA,
+  MADEIRA,
+}
+
+export const TILE_GROUP: Readonly<Record<TileType, TileGroup>> = {
+  [TileType.AR]: TileGroup.NENHUM,
+  [TileType.GRAMA]: TileGroup.SOLO,
+  [TileType.TERRA]: TileGroup.SOLO,
+  [TileType.PEDRA]: TileGroup.ROCHA,
+  [TileType.AREIA]: TileGroup.AREIA,
+  [TileType.MADEIRA]: TileGroup.MADEIRA,
+  [TileType.MINERIO_COBRE]: TileGroup.ROCHA,
+  [TileType.MINERIO_FERRO]: TileGroup.ROCHA,
+  [TileType.MINERIO_OURO]: TileGroup.ROCHA,
+  [TileType.BEDROCK]: TileGroup.ROCHA,
+  [TileType.TOCHA]: TileGroup.NENHUM,
+};
+
 export function shade(hex: string, factor: number): string {
   const n = parseInt(hex.slice(1), 16);
   const r = Math.min(255, Math.round(((n >> 16) & 0xff) * factor));
