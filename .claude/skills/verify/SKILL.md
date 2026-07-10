@@ -35,5 +35,9 @@ Superfície: GUI no navegador (Canvas). Verificar = subir o dev server, dirigir 
   mas minerar exige `mouse.down` + espera + `mouse.up`.
 
 - Mundo é determinístico por `WORLD_SEED`: as mesmas capturas devem sair iguais entre execuções.
+- Player usa `public/player_sheet.png` (4x2, célula 64x128) via `PLAYER_SHEET_SRC` em config.ts;
+  se a imagem falhar ao carregar, cai automaticamente no desenho procedural antigo (fallback).
+  Pra testar o fallback: aponte `PLAYER_SHEET_SRC` pra um arquivo inexistente, dê `page.reload()`
+  (o Image é carregado uma vez a nível de módulo, HMR sozinho não reexecuta isso de forma confiável).
 - Terreno tem degraus de no máximo 1 tile (`SURFACE_MAX_STEP`); o player NÃO tem auto step-up — subir degrau exige pulo.
 - Constantes de física/câmera em `src/config.ts` (player anda a `PLAYER_MOVE_SPEED` px/s).

@@ -251,6 +251,15 @@ export const PLAYER_HAIR_SPRING_DAMPING = 12; // amortecimento do spring do cabe
 export const PLAYER_ARM_SPRING_STIFFNESS = 200; // rigidez do spring da barra dos braços
 export const PLAYER_ARM_SPRING_DAMPING = 16; // amortecimento do spring da barra dos braços
 
+// --- Player: spritesheet (substitui o desenho procedural quando carrega) ---
+export const PLAYER_SHEET_SRC = "/player_sheet.png";
+export const PLAYER_SHEET_COLS = 4;
+export const PLAYER_SHEET_ROWS = 2;
+export const PLAYER_SHEET_FRAME_W = 64; // px, célula da grade (256/4)
+export const PLAYER_SHEET_FRAME_H = 128; // px, célula da grade (256/2)
+export const PLAYER_SPRITE_HEIGHT_TILES = 2.4; // altura do desenho (maior que a hitbox), ancorado pelo pé
+export const PLAYER_WALK_FRAME_SPEED = 8; // frames/s do ciclo de andar (4 frames) na velocidade máxima
+
 // --- Iluminação (níveis 0-15 por tile, propagados por BFS) ---
 export const LIGHT_MAX_LEVEL = 15;
 export const LIGHT_ATTENUATION_AIR = 1; // níveis perdidos ao entrar num tile de ar

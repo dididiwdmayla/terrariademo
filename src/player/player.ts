@@ -49,18 +49,58 @@ import {
   PLAYER_HAIR_SPRING_STIFFNESS,
   PLAYER_ARM_SPRING_DAMPING,
   PLAYER_ARM_SPRING_STIFFNESS,
+  PLAYER_SHEET_COLS,
+  PLAYER_SHEET_FRAME_H,
+  PLAYER_SHEET_FRAME_W,
+  PLAYER_SHEET_SRC,
+  PLAYER_SPRITE_HEIGHT_TILES,
   PLAYER_TORSO_HEIGHT,
   PLAYER_TORSO_WIDTH,
   PLAYER_WALK_ARM_SWING,
   PLAYER_WALK_CYCLE_SPEED,
+  PLAYER_WALK_FRAME_SPEED,
   PLAYER_WALK_LEG_SWING,
   PLAYER_WIDTH,
   MAX_FALL_SPEED,
+  TILE_SIZE,
 } from "../config";
 import { shade } from "../world/tiles";
 import type { Camera } from "../engine/camera";
 
 type AnimState = "idle" | "walking" | "jumping" | "falling" | "crouching";
+type WalkFrame = "walk1" | "walk2" | "walk3" | "walk4";
+type FrameKey = "idle" | WalkFrame | "jump" | "fall" | "crouch";
+
+// Ordem dos frames no spritesheet (grade 4 colunas x 2 linhas, célula 64x128,
+// sprite ancorado no fundo da célula, desenhado olhando pra direita):
+// idle, andar 1-4, pulo, queda, agachado.
+const FRAME_INDEX: Readonly<Record<FrameKey, number>> = {
+  idle: 0,
+  walk1: 1,
+  walk2: 2,
+  walk3: 3,
+  walk4: 4,
+  jump: 5,
+  fall: 6,
+  crouch: 7,
+};
+const WALK_FRAMES: readonly WalkFrame[] = ["walk1", "walk2", "walk3", "walk4"];
+
+// Carregada uma única vez (nível de módulo), compartilhada por qualquer Player.
+let spriteSheet: HTMLImageElement | null = null;
+let spriteReady = false;
+
+function ensureSpriteSheetLoading(): void {
+  if (spriteSheet) return;
+  const img = new Image();
+  img.onload = () => {
+    spriteReady = true;
+  };
+  // falha silenciosa: spriteReady permanece false e o render cai no fallback procedural
+  img.src = PLAYER_SHEET_SRC;
+  spriteSheet = img;
+}
+ensureSpriteSheetLoading();
 
 const BRIGHTNESS_STEPS = 31; // quantização do brilho p/ cache de cores sombreadas
 
@@ -104,7 +144,8 @@ export class Player {
 
   private state: AnimState = "idle";
   private animTime = 0;
-  private walkPhase = 0;
+  private walkPhase = 0; // usado pelo fallback procedural (balanço senoidal)
+  private walkFrameTimer = 0; // usado pelo spritesheet (avança pelos 4 frames de andar)
   private blinking = false;
   private blinkTimer = PLAYER_BLINK_MIN_INTERVAL;
 
@@ -139,7 +180,9 @@ export class Player {
 
     this.animTime += dt;
     if (this.state === "walking") {
-      this.walkPhase += dt * PLAYER_WALK_CYCLE_SPEED * (Math.abs(this.vx) / PLAYER_MOVE_SPEED);
+      const speedFrac = Math.abs(this.vx) / PLAYER_MOVE_SPEED;
+      this.walkPhase += dt * PLAYER_WALK_CYCLE_SPEED * speedFrac;
+      this.walkFrameTimer += dt * PLAYER_WALK_FRAME_SPEED * speedFrac;
     }
 
     this.blinkTimer -= dt;
@@ -230,8 +273,66 @@ export class Player {
     return s;
   }
 
+  // Escolhe o quadro do spritesheet pro estado/fase de animação atuais.
+  private currentFrameKey(): FrameKey {
+    switch (this.state) {
+      case "idle":
+        return "idle";
+      case "crouching":
+        return "crouch";
+      case "jumping":
+        return "jump";
+      case "falling":
+        return "fall";
+      case "walking":
+        return WALK_FRAMES[Math.floor(this.walkFrameTimer) % WALK_FRAMES.length];
+    }
+  }
+
   render(ctx: CanvasRenderingContext2D, camera: Camera, brightness = 1): void {
     this.brightness = brightness;
+    if (spriteReady && spriteSheet) {
+      this.renderSprite(ctx, camera, spriteSheet);
+      return;
+    }
+    // enquanto a imagem carrega (ou se falhar), usa o desenho procedural antigo
+    this.renderProcedural(ctx, camera);
+  }
+
+  // Recorta a célula do frame atual do spritesheet e desenha ancorado pelo pé
+  // na base da hitbox, com squash/stretch e inclinação aplicados via transform
+  // (mesma lógica de ancoragem do fallback procedural) e espelhamento horizontal
+  // quando o player olha pra esquerda (os frames foram desenhados pra direita).
+  private renderSprite(ctx: CanvasRenderingContext2D, camera: Camera, img: HTMLImageElement): void {
+    const z = camera.zoom;
+    const s = camera.worldToScreen(this.x, this.y);
+    const px = Math.round(s.x);
+    const py = Math.round(s.y);
+
+    const frameIndex = FRAME_INDEX[this.currentFrameKey()];
+    const col = frameIndex % PLAYER_SHEET_COLS;
+    const row = Math.floor(frameIndex / PLAYER_SHEET_COLS);
+    const sx = col * PLAYER_SHEET_FRAME_W;
+    const sy = row * PLAYER_SHEET_FRAME_H;
+
+    const vScale = (this.state === "crouching" ? PLAYER_CROUCH_HEIGHT_MULT : 1) * this.scaleY;
+    const hScale = this.scaleX;
+
+    const drawH = PLAYER_SPRITE_HEIGHT_TILES * TILE_SIZE * z;
+    const drawW = drawH * (PLAYER_SHEET_FRAME_W / PLAYER_SHEET_FRAME_H);
+    const footX = px + (this.width / 2) * z;
+    const footY = py + this.height * z;
+
+    ctx.save();
+    ctx.translate(footX, footY);
+    ctx.rotate(this.leanAngle);
+    ctx.scale((this.facing === 1 ? 1 : -1) * hScale, vScale);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, sx, sy, PLAYER_SHEET_FRAME_W, PLAYER_SHEET_FRAME_H, -drawW / 2, -drawH, drawW, drawH);
+    ctx.restore();
+  }
+
+  private renderProcedural(ctx: CanvasRenderingContext2D, camera: Camera): void {
     const z = camera.zoom;
     const s = camera.worldToScreen(this.x, this.y);
     const px = Math.round(s.x);
