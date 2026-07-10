@@ -257,7 +257,7 @@ export const PLAYER_SHEET_COLS = 4;
 export const PLAYER_SHEET_ROWS = 2;
 export const PLAYER_SHEET_FRAME_W = 64; // px, célula da grade (256/4)
 export const PLAYER_SHEET_FRAME_H = 128; // px, célula da grade (256/2)
-export const PLAYER_SPRITE_HEIGHT_TILES = 2.4; // altura do desenho (maior que a hitbox), ancorado pelo pé
+export const PLAYER_SPRITE_HEIGHT_TILES = 3; // altura do desenho (maior que a hitbox), ancorado pelo pé
 export const PLAYER_WALK_FRAME_SPEED = 8; // frames/s do ciclo de andar (4 frames) na velocidade máxima
 
 // --- Iluminação (níveis 0-15 por tile, propagados por BFS) ---
