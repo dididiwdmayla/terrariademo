@@ -231,8 +231,7 @@ export const PLAYER_JUMP_LEG_BEND = 4; // px de encolhimento das pernas ao pular
 export const PLAYER_JUMP_ARM_RAISE = 4; // px de elevação dos braços ao pular
 export const PLAYER_FALL_ARM_SPREAD = 5; // px de abertura dos braços ao cair
 export const PLAYER_FALL_LEG_SPREAD = 2; // px de abertura das pernas ao cair
-export const PLAYER_MINE_SWING_SPEED = 7; // ciclos/s do golpe de mineração
-export const PLAYER_MINE_SWING_AMPLITUDE = 0.8; // rad de amplitude do golpe em torno do cursor
+export const PLAYER_MINE_SWING_SPEED = 7; // golpes/s (ciclos do arco da picareta) durante a mineração
 
 // --- Player: reação procedural (squash/stretch, inclinação, movimento secundário) ---
 export const PLAYER_LAND_SQUASH_DURATION = 0.1; // s, duração da recuperação elástica ao aterrissar
@@ -251,14 +250,59 @@ export const PLAYER_HAIR_SPRING_DAMPING = 12; // amortecimento do spring do cabe
 export const PLAYER_ARM_SPRING_STIFFNESS = 200; // rigidez do spring da barra dos braços
 export const PLAYER_ARM_SPRING_DAMPING = 16; // amortecimento do spring da barra dos braços
 
-// --- Player: spritesheet (substitui o desenho procedural quando carrega) ---
-export const PLAYER_SHEET_SRC = "/player_sheet.png";
-export const PLAYER_SHEET_COLS = 4;
-export const PLAYER_SHEET_ROWS = 2;
-export const PLAYER_SHEET_FRAME_W = 64; // px, célula da grade (256/4)
-export const PLAYER_SHEET_FRAME_H = 128; // px, célula da grade (256/2)
+// --- Player: spritesheets (substituem o desenho procedural quando carregam) ---
+// Todas as células têm 64x128 (personagem ancorado no pé, virado pra direita).
+export const PLAYER_SHEET_FRAME_W = 64;
+export const PLAYER_SHEET_FRAME_H = 128;
 export const PLAYER_SPRITE_HEIGHT_TILES = 3; // altura do desenho (maior que a hitbox), ancorado pelo pé
-export const PLAYER_WALK_FRAME_SPEED = 10; // frames/s do ciclo de andar (4 frames) na velocidade máxima
+
+export const PLAYER_WALK_SHEET_SRC = "/walk_sheet.png";
+export const PLAYER_WALK_SHEET_COLS = 4; // grade 4x2, 8 frames
+export const PLAYER_WALK_FRAME_ORDER = [0, 1, 2, 3, 4, 5, 6, 7];
+export const PLAYER_WALK_FRAME_SPEED = 10; // frames/s do ciclo de andar na velocidade máxima
+
+export const PLAYER_RUN_SHEET_SRC = "/run_sheet.png";
+export const PLAYER_RUN_SHEET_COLS = 3; // grade 3x2, 6 frames
+export const PLAYER_RUN_FRAME_ORDER = [0, 1, 2, 3, 4, 5];
+export const PLAYER_RUN_FRAME_SPEED = 14; // frames/s fixo do ciclo de corrida
+export const PLAYER_SPRINT_SPEED_MULT = 1.6; // fração de PLAYER_MOVE_SPEED ao segurar sprint no chão
+
+export const PLAYER_JUMP_SHEET_SRC = "/jump_sheet.png";
+export const PLAYER_JUMP_SHEET_COLS = 2; // grade 2x2: antecipação, subindo, caindo, aterrissando
+export const PLAYER_JUMP_FRAME_ANTICIPATION = 0;
+export const PLAYER_JUMP_FRAME_RISING = 1;
+export const PLAYER_JUMP_FRAME_FALLING = 2;
+export const PLAYER_JUMP_FRAME_LANDING = 3;
+export const PLAYER_JUMP_ANTICIPATION_FRAME_MS = 80; // ms de antecipação no impulso do pulo
+export const PLAYER_LANDING_FRAME_MS = 100; // ms de frame de aterrissagem antes de voltar a idle/andar
+
+export const PLAYER_IDLE_SHEET_SRC = "/idle_sheet.png";
+export const PLAYER_IDLE_SHEET_COLS = 3; // grade 3x2, 6 frames
+export const PLAYER_IDLE_FRAME_ORDER = [0, 1, 2, 3, 4, 5];
+export const PLAYER_IDLE_STAGE1_FRAME = 0; // parado, sem input recente
+export const PLAYER_IDLE_WHISTLE_DELAY = 5; // s sem input antes de iniciar o ciclo de assovio
+export const PLAYER_IDLE_WHISTLE_FRAME_SPEED = 6; // frames/s do ciclo de assovio
+
+export const PLAYER_CROUCH_SHEET_SRC = "/crouch_sheet.png";
+export const PLAYER_CROUCH_SHEET_COLS = 2; // grade 2x2; só os frames 0 (transição) e 1 (agachado) são usados
+export const PLAYER_CROUCH_FRAME_TRANSITION = 0;
+export const PLAYER_CROUCH_FRAME_HELD = 1;
+export const PLAYER_CROUCH_TRANSITION_MS = 80; // ms do frame de transição ao agachar
+
+// --- Player: picareta (desenhada e rotacionada por código ao minerar) ---
+export const PLAYER_PICKAXE_SRC = "/pickaxe.png";
+export const PLAYER_PICKAXE_SIZE = 26; // px, no mesmo espaço de escala do frame do sprite (64x128), antes do zoom
+// fração da imagem (64x64) onde fica a empunhadura, usada como pivô de rotação (obtida por inspeção de pixels)
+export const PLAYER_PICKAXE_PIVOT_FRAC_X = 57 / 64;
+export const PLAYER_PICKAXE_PIVOT_FRAC_Y = 62 / 64;
+// ângulo (graus) do vetor empunhadura->cabeça em repouso na própria imagem, p/ alinhar com o ângulo de mira
+export const PLAYER_PICKAXE_REST_ANGLE_DEG = -123;
+export const PLAYER_PICKAXE_ARC_DEG = 100; // amplitude do arco de golpe em torno do ângulo de mira
+
+// posição do ombro da frente dentro da célula 64x128 (personagem olhando pra direita), usada
+// como pivô do braço/picareta; mesma posição serve pro braço de trás (a picareta é sempre da frente)
+export const PLAYER_SPRITE_SHOULDER_X = 42; // px
+export const PLAYER_SPRITE_SHOULDER_Y = 66; // px, a partir do topo da célula
 
 // --- Iluminação (níveis 0-15 por tile, propagados por BFS) ---
 export const LIGHT_MAX_LEVEL = 15;

@@ -5,7 +5,12 @@ import {
   PLAYER_BLINK_MAX_INTERVAL,
   PLAYER_BLINK_MIN_INTERVAL,
   PLAYER_COLORS,
+  PLAYER_CROUCH_FRAME_HELD,
+  PLAYER_CROUCH_FRAME_TRANSITION,
   PLAYER_CROUCH_HEIGHT_MULT,
+  PLAYER_CROUCH_SHEET_COLS,
+  PLAYER_CROUCH_SHEET_SRC,
+  PLAYER_CROUCH_TRANSITION_MS,
   PLAYER_EYE_H,
   PLAYER_EYE_W,
   PLAYER_EYE_X1,
@@ -18,48 +23,74 @@ import {
   PLAYER_HEIGHT,
   PLAYER_IDLE_BREATH_AMPLITUDE,
   PLAYER_IDLE_BREATH_SPEED,
+  PLAYER_IDLE_FRAME_ORDER,
+  PLAYER_IDLE_SHEET_COLS,
+  PLAYER_IDLE_SHEET_SRC,
+  PLAYER_IDLE_STAGE1_FRAME,
+  PLAYER_IDLE_WHISTLE_DELAY,
+  PLAYER_IDLE_WHISTLE_FRAME_SPEED,
   PLAYER_JUMP_ANTICIPATION_DURATION,
+  PLAYER_JUMP_ANTICIPATION_FRAME_MS,
   PLAYER_JUMP_ANTICIPATION_SQUASH,
   PLAYER_JUMP_ARM_RAISE,
+  PLAYER_JUMP_FRAME_ANTICIPATION,
+  PLAYER_JUMP_FRAME_FALLING,
+  PLAYER_JUMP_FRAME_LANDING,
+  PLAYER_JUMP_FRAME_RISING,
   PLAYER_JUMP_LEG_BEND,
+  PLAYER_JUMP_SHEET_COLS,
+  PLAYER_JUMP_SHEET_SRC,
   PLAYER_JUMP_STRETCH_AMOUNT,
   PLAYER_JUMP_STRETCH_DURATION,
   PLAYER_LAND_SQUASH_DURATION,
   PLAYER_LAND_SQUASH_MAX,
   PLAYER_LAND_SQUASH_WIDEN,
+  PLAYER_LANDING_FRAME_MS,
   PLAYER_LEAN_MAX_DEG,
   PLAYER_LEAN_SMOOTH_SPEED,
   PLAYER_LEG_GAP,
   PLAYER_LEG_HEIGHT,
   PLAYER_LEG_WIDTH,
   PLAYER_MAX_HP,
-  PLAYER_MINE_SWING_AMPLITUDE,
   PLAYER_MINE_SWING_SPEED,
   PLAYER_MOUTH_H,
   PLAYER_MOUTH_W,
   PLAYER_MOUTH_Y,
   PLAYER_MOVE_SPEED,
+  PLAYER_PICKAXE_ARC_DEG,
+  PLAYER_PICKAXE_PIVOT_FRAC_X,
+  PLAYER_PICKAXE_PIVOT_FRAC_Y,
+  PLAYER_PICKAXE_REST_ANGLE_DEG,
+  PLAYER_PICKAXE_SIZE,
+  PLAYER_PICKAXE_SRC,
   PLAYER_PUPIL_COLOR,
   PLAYER_PUPIL_H,
   PLAYER_PUPIL_OFFSET,
   PLAYER_PUPIL_W,
+  PLAYER_RUN_FRAME_ORDER,
+  PLAYER_RUN_FRAME_SPEED,
+  PLAYER_RUN_SHEET_COLS,
+  PLAYER_RUN_SHEET_SRC,
   PLAYER_SECONDARY_LAG_FACTOR,
   PLAYER_SECONDARY_MAX_OFFSET,
   PLAYER_HAIR_SPRING_DAMPING,
   PLAYER_HAIR_SPRING_STIFFNESS,
   PLAYER_ARM_SPRING_DAMPING,
   PLAYER_ARM_SPRING_STIFFNESS,
-  PLAYER_SHEET_COLS,
   PLAYER_SHEET_FRAME_H,
   PLAYER_SHEET_FRAME_W,
-  PLAYER_SHEET_SRC,
   PLAYER_SPRITE_HEIGHT_TILES,
+  PLAYER_SPRITE_SHOULDER_X,
+  PLAYER_SPRITE_SHOULDER_Y,
   PLAYER_TORSO_HEIGHT,
   PLAYER_TORSO_WIDTH,
   PLAYER_WALK_ARM_SWING,
   PLAYER_WALK_CYCLE_SPEED,
+  PLAYER_WALK_FRAME_ORDER,
   PLAYER_WALK_FRAME_SPEED,
   PLAYER_WALK_LEG_SWING,
+  PLAYER_WALK_SHEET_COLS,
+  PLAYER_WALK_SHEET_SRC,
   PLAYER_WIDTH,
   MAX_FALL_SPEED,
   TILE_SIZE,
@@ -67,40 +98,34 @@ import {
 import { shade } from "../world/tiles";
 import type { Camera } from "../engine/camera";
 
-type AnimState = "idle" | "walking" | "jumping" | "falling" | "crouching";
-type WalkFrame = "walk1" | "walk2" | "walk3" | "walk4";
-type FrameKey = "idle" | WalkFrame | "jump" | "fall" | "crouch";
+type AnimState = "idle" | "walking" | "running" | "jumping" | "falling" | "crouching";
 
-// Ordem dos frames no spritesheet (grade 4 colunas x 2 linhas, célula 64x128,
-// sprite ancorado no fundo da célula, desenhado olhando pra direita):
-// idle, andar 1-4, pulo, queda, agachado.
-const FRAME_INDEX: Readonly<Record<FrameKey, number>> = {
-  idle: 0,
-  walk1: 1,
-  walk2: 2,
-  walk3: 3,
-  walk4: 4,
-  jump: 5,
-  fall: 6,
-  crouch: 7,
-};
-const WALK_FRAMES: readonly WalkFrame[] = ["walk1", "walk2", "walk3", "walk4"];
-
-// Carregada uma única vez (nível de módulo), compartilhada por qualquer Player.
-let spriteSheet: HTMLImageElement | null = null;
-let spriteReady = false;
-
-function ensureSpriteSheetLoading(): void {
-  if (spriteSheet) return;
-  const img = new Image();
-  img.onload = () => {
-    spriteReady = true;
-  };
-  // falha silenciosa: spriteReady permanece false e o render cai no fallback procedural
-  img.src = PLAYER_SHEET_SRC;
-  spriteSheet = img;
+interface SpriteSheet {
+  img: HTMLImageElement;
+  ready: boolean;
 }
-ensureSpriteSheetLoading();
+
+// Carregado uma única vez por sheet (nível de módulo), compartilhado por qualquer Player.
+function loadSheet(src: string): SpriteSheet {
+  const sheet: SpriteSheet = { img: new Image(), ready: false };
+  sheet.img.onload = () => {
+    sheet.ready = true;
+  };
+  // falha silenciosa: ready permanece false e o render cai no fallback procedural
+  sheet.img.src = src;
+  return sheet;
+}
+
+const walkSheet = loadSheet(PLAYER_WALK_SHEET_SRC);
+const runSheet = loadSheet(PLAYER_RUN_SHEET_SRC);
+const jumpSheet = loadSheet(PLAYER_JUMP_SHEET_SRC);
+const idleSheet = loadSheet(PLAYER_IDLE_SHEET_SRC);
+const crouchSheet = loadSheet(PLAYER_CROUCH_SHEET_SRC);
+const pickaxeSheet = loadSheet(PLAYER_PICKAXE_SRC);
+
+function allSpritesReady(): boolean {
+  return walkSheet.ready && runSheet.ready && jumpSheet.ready && idleSheet.ready && crouchSheet.ready;
+}
 
 const BRIGHTNESS_STEPS = 31; // quantização do brilho p/ cache de cores sombreadas
 
@@ -145,9 +170,19 @@ export class Player {
   private state: AnimState = "idle";
   private animTime = 0;
   private walkPhase = 0; // usado pelo fallback procedural (balanço senoidal)
-  private walkFrameTimer = 0; // usado pelo spritesheet (avança pelos 4 frames de andar)
+  private walkFrameTimer = 0; // avança pelos frames do walk_sheet
+  private runFrameTimer = 0; // avança pelos frames do run_sheet
   private blinking = false;
   private blinkTimer = PLAYER_BLINK_MIN_INTERVAL;
+
+  // idle em dois estágios: parado (frame 0) e, após PLAYER_IDLE_WHISTLE_DELAY sem input, ciclo de assovio
+  private idleNoInputTimer = 0;
+  private idleFrameTimer = 0;
+  private idleWhistling = false;
+
+  // agachar: frame de transição breve antes de manter o frame agachado
+  private wasCrouching = false;
+  private crouchTransitionTimer = 0;
 
   // reação procedural: squash & stretch, inclinação, movimento secundário (não afeta física/hitbox)
   private prevGrounded = false;
@@ -156,24 +191,28 @@ export class Player {
   private landSquashIntensity = 0;
   private jumpAnticipationTimer = 0;
   private jumpStretchTimer = 0;
+  // timers dos frames de pulo/aterrissagem do sprite (independentes do squash procedural acima)
+  private jumpAnticipationFrameTimer = 0;
+  private landingFrameTimer = 0;
   private scaleX = 1;
   private scaleY = 1;
   private leanAngle = 0; // rad, suavizado
   private readonly hairSpring: Spring = { pos: 0, vel: 0 };
   private readonly armSpring: Spring = { pos: 0, vel: 0 };
 
-  // Avança animação e estados visuais (agachar, mineração). Não toca em física/hitbox.
-  update(dt: number, crouchHeld: boolean, mining: boolean, mineAngle: number): void {
+  // Avança animação e estados visuais (agachar, sprint, mineração). Não toca em física/hitbox.
+  update(dt: number, crouchHeld: boolean, sprintHeld: boolean, mining: boolean, mineAngle: number): void {
     this.crouching = crouchHeld && this.grounded;
     this.mining = mining;
     this.mineAngle = mineAngle;
+    const sprinting = sprintHeld && this.grounded && !this.crouching;
 
     if (!this.grounded) {
       this.state = this.vy < 0 ? "jumping" : "falling";
     } else if (this.crouching) {
       this.state = "crouching";
     } else if (Math.abs(this.vx) > 5) {
-      this.state = "walking";
+      this.state = sprinting ? "running" : "walking";
     } else {
       this.state = "idle";
     }
@@ -183,7 +222,29 @@ export class Player {
       const speedFrac = Math.abs(this.vx) / PLAYER_MOVE_SPEED;
       this.walkPhase += dt * PLAYER_WALK_CYCLE_SPEED * speedFrac;
       this.walkFrameTimer += dt * PLAYER_WALK_FRAME_SPEED * speedFrac;
+    } else if (this.state === "running") {
+      this.walkPhase += dt * PLAYER_WALK_CYCLE_SPEED * 1.5;
+      this.runFrameTimer += dt * PLAYER_RUN_FRAME_SPEED;
     }
+
+    // idle em dois estágios: qualquer input (movimento/pulo/agachar/minerar) volta ao estágio 1
+    if (this.state === "idle" && !this.mining) {
+      this.idleNoInputTimer += dt;
+    } else {
+      this.idleNoInputTimer = 0;
+      this.idleFrameTimer = 0;
+    }
+    this.idleWhistling = this.idleNoInputTimer >= PLAYER_IDLE_WHISTLE_DELAY;
+    if (this.idleWhistling) this.idleFrameTimer += dt * PLAYER_IDLE_WHISTLE_FRAME_SPEED;
+
+    // agachar: frame de transição breve ao entrar no estado, depois mantém o frame agachado
+    if (this.state === "crouching") {
+      if (!this.wasCrouching) this.crouchTransitionTimer = PLAYER_CROUCH_TRANSITION_MS / 1000;
+      else this.crouchTransitionTimer = Math.max(0, this.crouchTransitionTimer - dt);
+    } else {
+      this.crouchTransitionTimer = 0;
+    }
+    this.wasCrouching = this.state === "crouching";
 
     this.blinkTimer -= dt;
     if (this.blinkTimer <= 0) {
@@ -207,13 +268,17 @@ export class Player {
     if (justLanded) {
       this.landSquashTimer = PLAYER_LAND_SQUASH_DURATION;
       this.landSquashIntensity = Math.min(1, this.lastAirVy / MAX_FALL_SPEED);
+      this.landingFrameTimer = PLAYER_LANDING_FRAME_MS / 1000;
     }
     if (justJumped) {
       this.jumpAnticipationTimer = PLAYER_JUMP_ANTICIPATION_DURATION;
       this.jumpStretchTimer = PLAYER_JUMP_STRETCH_DURATION;
+      this.jumpAnticipationFrameTimer = PLAYER_JUMP_ANTICIPATION_FRAME_MS / 1000;
     }
     if (!this.grounded) this.lastAirVy = this.vy;
     this.prevGrounded = this.grounded;
+    this.landingFrameTimer = Math.max(0, this.landingFrameTimer - dt);
+    this.jumpAnticipationFrameTimer = Math.max(0, this.jumpAnticipationFrameTimer - dt);
 
     let scaleY = 1;
     let scaleX = 1;
@@ -273,45 +338,63 @@ export class Player {
     return s;
   }
 
-  // Escolhe o quadro do spritesheet pro estado/fase de animação atuais.
-  private currentFrameKey(): FrameKey {
-    switch (this.state) {
-      case "idle":
-        return "idle";
-      case "crouching":
-        return "crouch";
-      case "jumping":
-        return "jump";
-      case "falling":
-        return "fall";
-      case "walking":
-        return WALK_FRAMES[Math.floor(this.walkFrameTimer) % WALK_FRAMES.length];
+  // Escolhe o sheet e o índice do frame atual pro estado/fase de animação.
+  private currentFrameSource(): { sheet: SpriteSheet; cols: number; frameIndex: number } {
+    if (this.state === "crouching") {
+      const frameIndex = this.crouchTransitionTimer > 0 ? PLAYER_CROUCH_FRAME_TRANSITION : PLAYER_CROUCH_FRAME_HELD;
+      return { sheet: crouchSheet, cols: PLAYER_CROUCH_SHEET_COLS, frameIndex };
     }
+    if (this.landingFrameTimer > 0) {
+      return { sheet: jumpSheet, cols: PLAYER_JUMP_SHEET_COLS, frameIndex: PLAYER_JUMP_FRAME_LANDING };
+    }
+    if (this.state === "jumping" || this.state === "falling") {
+      const frameIndex =
+        this.jumpAnticipationFrameTimer > 0
+          ? PLAYER_JUMP_FRAME_ANTICIPATION
+          : this.vy < 0
+            ? PLAYER_JUMP_FRAME_RISING
+            : PLAYER_JUMP_FRAME_FALLING;
+      return { sheet: jumpSheet, cols: PLAYER_JUMP_SHEET_COLS, frameIndex };
+    }
+    if (this.state === "running") {
+      const frameIndex = PLAYER_RUN_FRAME_ORDER[Math.floor(this.runFrameTimer) % PLAYER_RUN_FRAME_ORDER.length];
+      return { sheet: runSheet, cols: PLAYER_RUN_SHEET_COLS, frameIndex };
+    }
+    if (this.state === "walking") {
+      const frameIndex = PLAYER_WALK_FRAME_ORDER[Math.floor(this.walkFrameTimer) % PLAYER_WALK_FRAME_ORDER.length];
+      return { sheet: walkSheet, cols: PLAYER_WALK_SHEET_COLS, frameIndex };
+    }
+    // idle
+    const frameIndex = this.idleWhistling
+      ? PLAYER_IDLE_FRAME_ORDER[Math.floor(this.idleFrameTimer) % PLAYER_IDLE_FRAME_ORDER.length]
+      : PLAYER_IDLE_STAGE1_FRAME;
+    return { sheet: idleSheet, cols: PLAYER_IDLE_SHEET_COLS, frameIndex };
   }
 
   render(ctx: CanvasRenderingContext2D, camera: Camera, brightness = 1): void {
     this.brightness = brightness;
-    if (spriteReady && spriteSheet) {
-      this.renderSprite(ctx, camera, spriteSheet);
+    if (allSpritesReady()) {
+      this.renderSprite(ctx, camera);
       return;
     }
-    // enquanto a imagem carrega (ou se falhar), usa o desenho procedural antigo
+    // enquanto as imagens carregam (ou se alguma falhar), usa o desenho procedural antigo
     this.renderProcedural(ctx, camera);
   }
 
-  // Recorta a célula do frame atual do spritesheet e desenha ancorado pelo pé
-  // na base da hitbox, com squash/stretch e inclinação aplicados via transform
-  // (mesma lógica de ancoragem do fallback procedural) e espelhamento horizontal
-  // quando o player olha pra esquerda (os frames foram desenhados pra direita).
-  private renderSprite(ctx: CanvasRenderingContext2D, camera: Camera, img: HTMLImageElement): void {
+  // Recorta a célula do frame atual do sheet correspondente ao estado e desenha
+  // ancorado pelo pé na base da hitbox, com squash/stretch e inclinação aplicados
+  // via transform (mesma lógica de ancoragem do fallback procedural) e espelhamento
+  // horizontal quando o player olha pra esquerda (os frames foram desenhados pra direita).
+  // A picareta é desenhada separadamente, girando em torno do ombro da frente.
+  private renderSprite(ctx: CanvasRenderingContext2D, camera: Camera): void {
     const z = camera.zoom;
     const s = camera.worldToScreen(this.x, this.y);
     const px = Math.round(s.x);
     const py = Math.round(s.y);
 
-    const frameIndex = FRAME_INDEX[this.currentFrameKey()];
-    const col = frameIndex % PLAYER_SHEET_COLS;
-    const row = Math.floor(frameIndex / PLAYER_SHEET_COLS);
+    const { sheet, cols, frameIndex } = this.currentFrameSource();
+    const col = frameIndex % cols;
+    const row = Math.floor(frameIndex / cols);
     const sx = col * PLAYER_SHEET_FRAME_W;
     const sy = row * PLAYER_SHEET_FRAME_H;
 
@@ -323,12 +406,44 @@ export class Player {
     const footX = px + (this.width / 2) * z;
     const footY = py + this.height * z;
 
+    // pivô do ombro/picareta: mesma escala do sprite, espelhado com o facing
+    const shoulderScale = drawH / PLAYER_SHEET_FRAME_H;
+    const frameShoulderX = PLAYER_SPRITE_SHOULDER_X * shoulderScale;
+    const frameShoulderY = PLAYER_SPRITE_SHOULDER_Y * shoulderScale;
+    const shoulderX = this.facing === 1 ? footX - drawW / 2 + frameShoulderX : footX + drawW / 2 - frameShoulderX;
+    const shoulderY = footY - drawH + frameShoulderY;
+    const swingPhase = this.mining ? (this.animTime * PLAYER_MINE_SWING_SPEED) % 1 : 0;
+    const pickaxeBehind = this.mining && swingPhase < 0.5;
+
+    if (pickaxeBehind) this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
+
     ctx.save();
     ctx.translate(footX, footY);
     ctx.rotate(this.leanAngle);
     ctx.scale((this.facing === 1 ? 1 : -1) * hScale, vScale);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, sx, sy, PLAYER_SHEET_FRAME_W, PLAYER_SHEET_FRAME_H, -drawW / 2, -drawH, drawW, drawH);
+    ctx.drawImage(sheet.img, sx, sy, PLAYER_SHEET_FRAME_W, PLAYER_SHEET_FRAME_H, -drawW / 2, -drawH, drawW, drawH);
+    ctx.restore();
+
+    if (this.mining && !pickaxeBehind) this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
+  }
+
+  // Desenha a picareta rotacionada em torno do ombro, apontando pro ângulo de mira
+  // com um golpe (arco de PLAYER_PICKAXE_ARC_DEG) por ciclo de mineração.
+  private drawPickaxe(ctx: CanvasRenderingContext2D, shoulderX: number, shoulderY: number, scale: number, swingPhase: number): void {
+    if (!pickaxeSheet.ready) return;
+    const arcRad = (PLAYER_PICKAXE_ARC_DEG * Math.PI) / 180;
+    const restAngleRad = (PLAYER_PICKAXE_REST_ANGLE_DEG * Math.PI) / 180;
+    const swingOffset = (swingPhase - 0.5) * arcRad;
+    const rotation = this.mineAngle + swingOffset - restAngleRad;
+    const size = PLAYER_PICKAXE_SIZE * scale;
+    const pivotX = PLAYER_PICKAXE_PIVOT_FRAC_X * size;
+    const pivotY = PLAYER_PICKAXE_PIVOT_FRAC_Y * size;
+
+    ctx.save();
+    ctx.translate(shoulderX, shoulderY);
+    ctx.rotate(rotation);
+    ctx.drawImage(pickaxeSheet.img, -pivotX, -pivotY, size, size);
     ctx.restore();
   }
 
@@ -369,7 +484,7 @@ export class Player {
     let legHeightAdj = 0; // reduz altura das pernas (pulo)
     let armYOffset = 0; // eleva braços (pulo)
 
-    if (this.state === "walking") {
+    if (this.state === "walking" || this.state === "running") {
       const swingLeg = Math.sin(this.walkPhase) * PLAYER_WALK_LEG_SWING;
       const swingArm = Math.sin(this.walkPhase) * PLAYER_WALK_ARM_SWING;
       legDx1 = swingLeg;
@@ -503,7 +618,7 @@ export class Player {
     ctx.fillRect(mapX(armX + dx), mapY(PLAYER_HEAD_HEIGHT + armYOffset), PLAYER_ARM_WIDTH * z, mapH(PLAYER_ARM_HEIGHT));
   }
 
-  // Braço da frente: golpe de mineração aponta e oscila em direção ao cursor.
+  // Braço da frente (estático); a picareta é desenhada por cima, girando em torno do ombro, ao minerar.
   private drawFrontArm(
     ctx: CanvasRenderingContext2D,
     px: number,
@@ -525,15 +640,12 @@ export class Player {
     const armW = PLAYER_ARM_WIDTH * z;
 
     ctx.fillStyle = this.shaded(PLAYER_COLORS.braco);
-    ctx.save();
-    ctx.translate(shoulderX, shoulderY);
+    ctx.fillRect(shoulderX - armW / 2, shoulderY, armW, armLen);
+
     if (this.mining) {
-      const swing = Math.sin(this.animTime * Math.PI * 2 * PLAYER_MINE_SWING_SPEED) * PLAYER_MINE_SWING_AMPLITUDE;
-      ctx.rotate(this.mineAngle + swing - Math.PI / 2);
-      ctx.fillRect(-armW / 2, 0, armW, armLen);
-    } else {
-      ctx.fillRect(-armW / 2, 0, armW, armLen);
+      const shoulderScale = (PLAYER_SPRITE_HEIGHT_TILES * TILE_SIZE * z) / PLAYER_SHEET_FRAME_H;
+      const swingPhase = (this.animTime * PLAYER_MINE_SWING_SPEED) % 1;
+      this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
     }
-    ctx.restore();
   }
 }

@@ -54,11 +54,13 @@ function update(dt: number): void {
   animTime += dt;
   dayNight.update(dt);
   const crouch = input.isDown("KeyS") || input.isDown("ArrowDown");
+  const sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
   const controls: Controls = {
     left: input.isDown("KeyA") || input.isDown("ArrowLeft"),
     right: input.isDown("KeyD") || input.isDown("ArrowRight"),
     jump: input.isDown("Space") || input.isDown("KeyW") || input.isDown("ArrowUp"),
     crouch,
+    sprint,
   };
   const wasGrounded = player.grounded;
   const vyBeforeStep = player.vy;
@@ -82,7 +84,7 @@ function update(dt: number): void {
 
   const playerScreen = camera.worldToScreen(player.x + player.width / 2, player.y + player.height / 2);
   const mineAngle = Math.atan2(input.mouseY - playerScreen.y, input.mouseX - playerScreen.x);
-  player.update(dt, crouch, interaction.isMining(), mineAngle);
+  player.update(dt, crouch, sprint, interaction.isMining(), mineAngle);
 
   updateTorchSparks(dt, particles, world, camera, window.innerWidth, window.innerHeight);
   particles.update(dt);
