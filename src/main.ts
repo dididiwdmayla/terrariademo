@@ -84,7 +84,8 @@ function update(dt: number): void {
 
   const playerScreen = camera.worldToScreen(player.x + player.width / 2, player.y + player.height / 2);
   const mineAngle = Math.atan2(input.mouseY - playerScreen.y, input.mouseX - playerScreen.x);
-  player.update(dt, crouch, sprint, interaction.isMining(), mineAngle);
+  // o golpe é visual e acompanha o botão segurado, com ou sem alvo válido (balanço no ar)
+  player.update(dt, crouch, sprint, input.mouseLeftDown, mineAngle);
 
   updateTorchSparks(dt, particles, world, camera, window.innerWidth, window.innerHeight);
   particles.update(dt);

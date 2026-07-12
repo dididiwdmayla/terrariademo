@@ -289,20 +289,30 @@ export const PLAYER_CROUCH_FRAME_TRANSITION = 0;
 export const PLAYER_CROUCH_FRAME_HELD = 1;
 export const PLAYER_CROUCH_TRANSITION_MS = 80; // ms do frame de transição ao agachar
 
-// --- Player: picareta (desenhada e rotacionada por código ao minerar) ---
+// --- Player: braço de mineração procedural + picareta (desenhados por código, por cima do sprite) ---
 export const PLAYER_PICKAXE_SRC = "/pickaxe.png";
-export const PLAYER_PICKAXE_SIZE = 26; // px, no mesmo espaço de escala do frame do sprite (64x128), antes do zoom
+export const PICKAXE_SCALE = 1.4; // lado do desenho da picareta, em tiles (antes do zoom da câmera)
 // fração da imagem (64x64) onde fica a empunhadura, usada como pivô de rotação (obtida por inspeção de pixels)
 export const PLAYER_PICKAXE_PIVOT_FRAC_X = 57 / 64;
 export const PLAYER_PICKAXE_PIVOT_FRAC_Y = 62 / 64;
-// ângulo (graus) do vetor empunhadura->cabeça em repouso na própria imagem, p/ alinhar com o ângulo de mira
+// ângulo (graus) do vetor empunhadura->cabeça em repouso na própria imagem, usado só p/ alinhar
+// o cabo com o eixo do braço (o ângulo de mira já é aplicado na rotação do braço)
 export const PLAYER_PICKAXE_REST_ANGLE_DEG = -123;
-export const PLAYER_PICKAXE_ARC_DEG = 100; // amplitude do arco de golpe em torno do ângulo de mira
+export const PLAYER_MINE_ARC_DEG = 110; // amplitude do arco do golpe, centrado no ângulo de mira
 
-// posição do ombro da frente dentro da célula 64x128 (personagem olhando pra direita), usada
-// como pivô do braço/picareta; mesma posição serve pro braço de trás (a picareta é sempre da frente)
-export const PLAYER_SPRITE_SHOULDER_X = 42; // px
-export const PLAYER_SPRITE_SHOULDER_Y = 66; // px, a partir do topo da célula
+// pivô do ombro da frente, como fração da largura/altura do sprite desenhado (personagem olhando
+// pra direita); usado pro braço procedural de mineração e pra fixar a picareta na mão
+export const PLAYER_ARM_SHOULDER_X_FRAC = 0.66;
+export const PLAYER_ARM_SHOULDER_Y_FRAC = 0.6; // ~60% da altura do sprite, a partir do topo
+
+// braço de mineração: 2 segmentos (cápsula) + mão, como frações da altura do sprite desenhado
+export const PLAYER_MINE_ARM_UPPER_LEN_FRAC = 0.22; // braço (ombro->cotovelo)
+export const PLAYER_MINE_ARM_FORE_LEN_FRAC = 0.2; // antebraço (cotovelo->mão)
+export const PLAYER_MINE_ARM_WIDTH_FRAC = 0.09;
+export const PLAYER_MINE_ARM_HAND_RADIUS_FRAC = 0.06;
+
+// golpe de mineração: um ciclo = uma descida (com aceleração) + um retorno rápido
+export const PLAYER_MINE_SWING_DURATION_FRAC = 0.7; // fração do ciclo usada pela descida; o resto é o retorno
 
 // --- Iluminação (níveis 0-15 por tile, propagados por BFS) ---
 export const LIGHT_MAX_LEVEL = 15;

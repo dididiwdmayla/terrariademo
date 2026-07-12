@@ -1,5 +1,7 @@
 import {
   PLAYER_ARM_HEIGHT,
+  PLAYER_ARM_SHOULDER_X_FRAC,
+  PLAYER_ARM_SHOULDER_Y_FRAC,
   PLAYER_ARM_WIDTH,
   PLAYER_BLINK_DURATION,
   PLAYER_BLINK_MAX_INTERVAL,
@@ -52,16 +54,21 @@ import {
   PLAYER_LEG_HEIGHT,
   PLAYER_LEG_WIDTH,
   PLAYER_MAX_HP,
+  PLAYER_MINE_ARC_DEG,
+  PLAYER_MINE_ARM_FORE_LEN_FRAC,
+  PLAYER_MINE_ARM_HAND_RADIUS_FRAC,
+  PLAYER_MINE_ARM_UPPER_LEN_FRAC,
+  PLAYER_MINE_ARM_WIDTH_FRAC,
+  PLAYER_MINE_SWING_DURATION_FRAC,
   PLAYER_MINE_SWING_SPEED,
   PLAYER_MOUTH_H,
   PLAYER_MOUTH_W,
   PLAYER_MOUTH_Y,
   PLAYER_MOVE_SPEED,
-  PLAYER_PICKAXE_ARC_DEG,
+  PICKAXE_SCALE,
   PLAYER_PICKAXE_PIVOT_FRAC_X,
   PLAYER_PICKAXE_PIVOT_FRAC_Y,
   PLAYER_PICKAXE_REST_ANGLE_DEG,
-  PLAYER_PICKAXE_SIZE,
   PLAYER_PICKAXE_SRC,
   PLAYER_PUPIL_COLOR,
   PLAYER_PUPIL_H,
@@ -80,8 +87,6 @@ import {
   PLAYER_SHEET_FRAME_H,
   PLAYER_SHEET_FRAME_W,
   PLAYER_SPRITE_HEIGHT_TILES,
-  PLAYER_SPRITE_SHOULDER_X,
-  PLAYER_SPRITE_SHOULDER_Y,
   PLAYER_TORSO_HEIGHT,
   PLAYER_TORSO_WIDTH,
   PLAYER_WALK_ARM_SWING,
@@ -164,7 +169,7 @@ export class Player {
   readonly height = PLAYER_HEIGHT;
 
   crouching = false;
-  private mining = false;
+  private swinging = false;
   private mineAngle = 0;
 
   private state: AnimState = "idle";
@@ -200,10 +205,11 @@ export class Player {
   private readonly hairSpring: Spring = { pos: 0, vel: 0 };
   private readonly armSpring: Spring = { pos: 0, vel: 0 };
 
-  // Avança animação e estados visuais (agachar, sprint, mineração). Não toca em física/hitbox.
-  update(dt: number, crouchHeld: boolean, sprintHeld: boolean, mining: boolean, mineAngle: number): void {
+  // Avança animação e estados visuais (agachar, sprint, golpe de mineração). Não toca em física/hitbox.
+  // `swinging` reflete o botão de minerar segurado (com alvo válido ou não — o golpe acontece no ar também).
+  update(dt: number, crouchHeld: boolean, sprintHeld: boolean, swinging: boolean, mineAngle: number): void {
     this.crouching = crouchHeld && this.grounded;
-    this.mining = mining;
+    this.swinging = swinging;
     this.mineAngle = mineAngle;
     const sprinting = sprintHeld && this.grounded && !this.crouching;
 
@@ -228,7 +234,7 @@ export class Player {
     }
 
     // idle em dois estágios: qualquer input (movimento/pulo/agachar/minerar) volta ao estágio 1
-    if (this.state === "idle" && !this.mining) {
+    if (this.state === "idle" && !this.swinging) {
       this.idleNoInputTimer += dt;
     } else {
       this.idleNoInputTimer = 0;
@@ -385,7 +391,7 @@ export class Player {
   // ancorado pelo pé na base da hitbox, com squash/stretch e inclinação aplicados
   // via transform (mesma lógica de ancoragem do fallback procedural) e espelhamento
   // horizontal quando o player olha pra esquerda (os frames foram desenhados pra direita).
-  // A picareta é desenhada separadamente, girando em torno do ombro da frente.
+  // O braço da frente é coberto pelo braço procedural + picareta ao minerar (ver drawMiningArm).
   private renderSprite(ctx: CanvasRenderingContext2D, camera: Camera): void {
     const z = camera.zoom;
     const s = camera.worldToScreen(this.x, this.y);
@@ -406,16 +412,16 @@ export class Player {
     const footX = px + (this.width / 2) * z;
     const footY = py + this.height * z;
 
-    // pivô do ombro/picareta: mesma escala do sprite, espelhado com o facing
-    const shoulderScale = drawH / PLAYER_SHEET_FRAME_H;
-    const frameShoulderX = PLAYER_SPRITE_SHOULDER_X * shoulderScale;
-    const frameShoulderY = PLAYER_SPRITE_SHOULDER_Y * shoulderScale;
-    const shoulderX = this.facing === 1 ? footX - drawW / 2 + frameShoulderX : footX + drawW / 2 - frameShoulderX;
-    const shoulderY = footY - drawH + frameShoulderY;
-    const swingPhase = this.mining ? (this.animTime * PLAYER_MINE_SWING_SPEED) % 1 : 0;
-    const pickaxeBehind = this.mining && swingPhase < 0.5;
-
-    if (pickaxeBehind) this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
+    const swing = this.computeSwing();
+    let shoulderX = 0;
+    let shoulderY = 0;
+    if (swing) {
+      const frameShoulderX = PLAYER_ARM_SHOULDER_X_FRAC * drawW;
+      const frameShoulderY = PLAYER_ARM_SHOULDER_Y_FRAC * drawH;
+      shoulderX = this.facing === 1 ? footX - drawW / 2 + frameShoulderX : footX + drawW / 2 - frameShoulderX;
+      shoulderY = footY - drawH + frameShoulderY;
+      if (swing.behind) this.drawMiningArm(ctx, shoulderX, shoulderY, drawH, z, swing.rotation);
+    }
 
     ctx.save();
     ctx.translate(footX, footY);
@@ -425,25 +431,65 @@ export class Player {
     ctx.drawImage(sheet.img, sx, sy, PLAYER_SHEET_FRAME_W, PLAYER_SHEET_FRAME_H, -drawW / 2, -drawH, drawW, drawH);
     ctx.restore();
 
-    if (this.mining && !pickaxeBehind) this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
+    if (swing && !swing.behind) this.drawMiningArm(ctx, shoulderX, shoulderY, drawH, z, swing.rotation);
   }
 
-  // Desenha a picareta rotacionada em torno do ombro, apontando pro ângulo de mira
-  // com um golpe (arco de PLAYER_PICKAXE_ARC_DEG) por ciclo de mineração.
-  private drawPickaxe(ctx: CanvasRenderingContext2D, shoulderX: number, shoulderY: number, scale: number, swingPhase: number): void {
-    if (!pickaxeSheet.ready) return;
-    const arcRad = (PLAYER_PICKAXE_ARC_DEG * Math.PI) / 180;
-    const restAngleRad = (PLAYER_PICKAXE_REST_ANGLE_DEG * Math.PI) / 180;
-    const swingOffset = (swingPhase - 0.5) * arcRad;
-    const rotation = this.mineAngle + swingOffset - restAngleRad;
-    const size = PLAYER_PICKAXE_SIZE * scale;
-    const pivotX = PLAYER_PICKAXE_PIVOT_FRAC_X * size;
-    const pivotY = PLAYER_PICKAXE_PIVOT_FRAC_Y * size;
+  // Calcula o ângulo do golpe de mineração no ciclo atual: uma descida com aceleração (ease-in)
+  // até o arco máximo em torno do ângulo de mira, seguida de um retorno rápido pro início do arco.
+  // `behind` indica se o braço deve ser desenhado atrás do corpo neste instante do golpe.
+  private computeSwing(): { rotation: number; behind: boolean } | null {
+    if (!this.swinging) return null;
+    const cycle = (this.animTime * PLAYER_MINE_SWING_SPEED) % 1;
+    const swingFrac = PLAYER_MINE_SWING_DURATION_FRAC;
+    let angleT: number;
+    if (cycle < swingFrac) {
+      const p = cycle / swingFrac;
+      angleT = p * p; // acelera na descida em direção ao alvo
+    } else {
+      const p = (cycle - swingFrac) / (1 - swingFrac);
+      angleT = 1 - p; // retorno rápido (comprimido numa fração menor do ciclo)
+    }
+    const arcRad = (PLAYER_MINE_ARC_DEG * Math.PI) / 180;
+    const swingOffset = (angleT - 0.5) * arcRad;
+    return { rotation: this.mineAngle + swingOffset, behind: swingOffset < 0 };
+  }
+
+  // Braço procedural de mineração: cápsula de 2 segmentos (cor da camisa) + mão (tom de pele),
+  // pivotando no ombro da frente e girando com a picareta presa na ponta, cabo alinhado ao braço.
+  private drawMiningArm(ctx: CanvasRenderingContext2D, shoulderX: number, shoulderY: number, drawH: number, z: number, rotation: number): void {
+    const seg1 = PLAYER_MINE_ARM_UPPER_LEN_FRAC * drawH;
+    const seg2 = PLAYER_MINE_ARM_FORE_LEN_FRAC * drawH;
+    const armW = PLAYER_MINE_ARM_WIDTH_FRAC * drawH;
+    const handR = PLAYER_MINE_ARM_HAND_RADIUS_FRAC * drawH;
 
     ctx.save();
     ctx.translate(shoulderX, shoulderY);
     ctx.rotate(rotation);
-    ctx.drawImage(pickaxeSheet.img, -pivotX, -pivotY, size, size);
+
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.corpo);
+    ctx.beginPath();
+    ctx.roundRect(0, -armW / 2, seg1, armW, armW / 2);
+    ctx.fill();
+    const foreArmW = armW * 0.84;
+    ctx.beginPath();
+    ctx.roundRect(seg1, -foreArmW / 2, seg2, foreArmW, foreArmW / 2);
+    ctx.fill();
+
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.cabeca);
+    ctx.beginPath();
+    ctx.arc(seg1 + seg2, 0, handR, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (pickaxeSheet.ready) {
+      const restAngleRad = (PLAYER_PICKAXE_REST_ANGLE_DEG * Math.PI) / 180;
+      const size = PICKAXE_SCALE * TILE_SIZE * z;
+      const pivotX = PLAYER_PICKAXE_PIVOT_FRAC_X * size;
+      const pivotY = PLAYER_PICKAXE_PIVOT_FRAC_Y * size;
+      ctx.translate(seg1 + seg2, 0);
+      ctx.rotate(-restAngleRad);
+      ctx.drawImage(pickaxeSheet.img, -pivotX, -pivotY, size, size);
+    }
+
     ctx.restore();
   }
 
@@ -618,7 +664,8 @@ export class Player {
     ctx.fillRect(mapX(armX + dx), mapY(PLAYER_HEAD_HEIGHT + armYOffset), PLAYER_ARM_WIDTH * z, mapH(PLAYER_ARM_HEIGHT));
   }
 
-  // Braço da frente (estático); a picareta é desenhada por cima, girando em torno do ombro, ao minerar.
+  // Braço da frente: estático fora da mineração; ao minerar, é coberto pelo braço
+  // procedural + picareta (drawMiningArm), igual ao caminho do spritesheet.
   private drawFrontArm(
     ctx: CanvasRenderingContext2D,
     px: number,
@@ -639,13 +686,13 @@ export class Player {
     const armLen = PLAYER_ARM_HEIGHT * z;
     const armW = PLAYER_ARM_WIDTH * z;
 
-    ctx.fillStyle = this.shaded(PLAYER_COLORS.braco);
-    ctx.fillRect(shoulderX - armW / 2, shoulderY, armW, armLen);
-
-    if (this.mining) {
-      const shoulderScale = (PLAYER_SPRITE_HEIGHT_TILES * TILE_SIZE * z) / PLAYER_SHEET_FRAME_H;
-      const swingPhase = (this.animTime * PLAYER_MINE_SWING_SPEED) % 1;
-      this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
+    const swing = this.computeSwing();
+    if (!swing) {
+      ctx.fillStyle = this.shaded(PLAYER_COLORS.braco);
+      ctx.fillRect(shoulderX - armW / 2, shoulderY, armW, armLen);
+      return;
     }
+    const drawH = PLAYER_SPRITE_HEIGHT_TILES * TILE_SIZE * z;
+    this.drawMiningArm(ctx, shoulderX, shoulderY, drawH, z, swing.rotation);
   }
 }
