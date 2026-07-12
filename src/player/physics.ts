@@ -11,6 +11,7 @@ import {
   PLAYER_JUMP_CUT_SPEED,
   PLAYER_JUMP_SPEED,
   PLAYER_MOVE_SPEED,
+  PLAYER_SPRINT_SPEED_MULT,
   TILE_SIZE,
 } from "../config";
 import { TILE_PROPS } from "../world/tiles";
@@ -22,6 +23,7 @@ export interface Controls {
   right: boolean;
   jump: boolean;
   crouch: boolean;
+  sprint: boolean;
 }
 
 function rectHitsSolid(world: World, x: number, y: number, w: number, h: number): boolean {
@@ -42,7 +44,12 @@ function rectHitsSolid(world: World, x: number, y: number, w: number, h: number)
 export function stepPlayer(player: Player, world: World, controls: Controls, dt: number): void {
   // --- horizontal: aceleração com input, fricção sem ---
   const dir: 1 | 0 | -1 = controls.right === controls.left ? 0 : controls.right ? 1 : -1;
-  const maxSpeed = controls.crouch && player.grounded ? PLAYER_MOVE_SPEED * PLAYER_CROUCH_SPEED_MULT : PLAYER_MOVE_SPEED;
+  const maxSpeed =
+    controls.crouch && player.grounded
+      ? PLAYER_MOVE_SPEED * PLAYER_CROUCH_SPEED_MULT
+      : controls.sprint && player.grounded
+        ? PLAYER_MOVE_SPEED * PLAYER_SPRINT_SPEED_MULT
+        : PLAYER_MOVE_SPEED;
   if (dir !== 0) {
     const accel = player.grounded ? PLAYER_GROUND_ACCEL : PLAYER_AIR_ACCEL;
     player.vx += dir * accel * dt;
