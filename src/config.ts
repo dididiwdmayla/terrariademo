@@ -375,7 +375,9 @@ export const HEALTH_BAR_LOW_THRESHOLD = 0.3; // fração de vida p/ trocar de co
 export const MINE_RANGE_TILES = 5; // alcance do mouse, em tiles a partir do centro do player
 export const MINE_SECONDS_PER_HARDNESS = 0.35; // segundos p/ minerar por ponto de dureza
 export const MINE_CRACK_STAGES = 3;
-export const MINE_HIGHLIGHT_COLOR = "rgba(255, 255, 255, 0.85)";
+export const MINE_HIGHLIGHT_COLOR = "rgba(255, 255, 255, 0.85)"; // tom de quebra (picareta selecionada)
+export const PLACE_HIGHLIGHT_COLOR = "rgba(120, 200, 255, 0.85)"; // tom de construção (bloco/tocha selecionado)
+export const EMPTY_HIGHLIGHT_COLOR = "rgba(255, 255, 255, 0.35)"; // slot vazio ou sem ação: mira neutra
 export const MINE_CRACK_COLOR = "rgba(20, 20, 20, 0.75)";
 export const PLACE_COOLDOWN = 0.15; // segundos entre colocações com botão segurado
 
@@ -409,3 +411,29 @@ export const HOTBAR_FONT = "11px monospace";
 export const HOTBAR_BG_COLOR = "rgba(20, 20, 24, 0.65)";
 export const HOTBAR_BORDER_COLOR = "rgba(255, 255, 255, 0.3)";
 export const HOTBAR_SELECTED_BORDER_COLOR = "#ffffff";
+
+// --- Itens (ícones de ferramentas na hotbar; imagem em vez da miniatura de cor) ---
+export const ITEM_ICON_PICKAXE_SRC = "/pickaxe.png";
+
+// --- Save / Load ---
+export const SAVE_KEY = "terra_save_v1";
+export const SAVE_VERSION = 1;
+export const SAVE_AUTOSAVE_INTERVAL = 30; // segundos entre auto-saves
+
+// --- Menu de save (F1 no teclado, botão discreto no toque) ---
+export const SAVE_MENU_OVERLAY_COLOR = "rgba(0, 0, 0, 0.55)";
+export const SAVE_MENU_PANEL_BG = "rgba(30, 30, 34, 0.95)";
+export const SAVE_MENU_PANEL_BORDER = "rgba(255, 255, 255, 0.3)";
+export const SAVE_MENU_PANEL_WIDTH = 260;
+export const SAVE_MENU_PANEL_PADDING = 20;
+export const SAVE_MENU_BUTTON_HEIGHT = 40;
+export const SAVE_MENU_BUTTON_GAP = 12;
+export const SAVE_MENU_TITLE_FONT = "16px monospace";
+export const SAVE_MENU_BUTTON_FONT = "13px monospace";
+export const SAVE_MENU_BUTTON_BG = "rgba(255, 255, 255, 0.12)";
+export const SAVE_MENU_BUTTON_BORDER = "rgba(255, 255, 255, 0.4)";
+export const SAVE_MENU_TEXT_COLOR = "#ffffff";
+
+// --- Controles de toque: botão discreto do menu de save (canto superior direito) ---
+export const TOUCH_MENU_BUTTON_SIZE_FRAC = 0.08;
+export const TOUCH_MENU_BUTTON_MARGIN_FRAC = 0.03;

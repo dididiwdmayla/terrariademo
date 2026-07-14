@@ -10,16 +10,20 @@ import { renderParallax } from "./world/parallax";
 import { drawOreSparkles } from "./world/sparkle";
 import { drawTorches, updateTorchSparks } from "./world/torches";
 import { TileType } from "./world/tiles";
+import { applyTileDeltas, buildSaveData, clearStorage, readFromStorage, saveToStorage } from "./world/save";
 import { Player } from "./player/player";
 import { stepPlayer, type Controls } from "./player/physics";
-import { Inventory } from "./player/inventory";
+import { Inventory, ToolType } from "./player/inventory";
 import { Interaction } from "./player/interact";
 import { Hud } from "./ui/hud";
+import { SaveMenu, type SaveMenuAction } from "./ui/savemenu";
 import {
   CAMERA_FOLLOW_SPEED,
+  DAY_START_FRACTION,
   FIXED_TIMESTEP,
   LANDING_FALL_SPEED_THRESHOLD,
   MAX_FRAME_DELTA,
+  SAVE_AUTOSAVE_INTERVAL,
   TILE_SIZE,
   TORCH_START_COUNT,
   WORLD_SEED,
@@ -31,28 +35,99 @@ const camera = new Camera();
 const input = new Input(canvas);
 const touchControls = new TouchControls(canvas);
 const hud = new Hud();
+const saveMenu = new SaveMenu();
 const inventory = new Inventory();
 const interaction = new Interaction();
 const dayNight = new DayNight();
 const particles = new Particles();
-
 const world = new World();
-generateWorld(world, WORLD_SEED);
-
-inventory.add(TileType.TOCHA, TORCH_START_COUNT);
-
-// spawn na superfície, no centro do mundo
 const player = new Player();
-const midX = world.widthTiles >> 1;
-player.x = midX * TILE_SIZE - player.width / 2;
-player.y = world.surfaceHeight[midX] * TILE_SIZE - player.height;
 
-camera.centerOn(player.x + player.width / 2, player.y + player.height / 2, window.innerWidth, window.innerHeight);
-camera.clampToWorld(world.widthPx, world.heightPx, window.innerWidth, window.innerHeight);
+let currentSeed = WORLD_SEED;
+let originalTiles!: Uint8Array; // snapshot do mundo recém-gerado (mesma seed), usado p/ diff no save
 
+function newWorldFromSeed(seed: number): void {
+  currentSeed = seed;
+  generateWorld(world, seed);
+  originalTiles = world.tiles.slice();
+}
+
+function resetInventoryDefaults(): void {
+  inventory.clear();
+  inventory.equipTool(0, ToolType.PICARETA);
+  inventory.add(TileType.TOCHA, TORCH_START_COUNT);
+  inventory.select(0);
+}
+
+function spawnPlayerAtSurface(): void {
+  const midX = world.widthTiles >> 1;
+  player.x = midX * TILE_SIZE - player.width / 2;
+  player.y = world.surfaceHeight[midX] * TILE_SIZE - player.height;
+  player.vx = 0;
+  player.vy = 0;
+}
+
+// boot: carrega o save (se válido e da mesma versão) ou gera o mundo padrão
+const savedGame = readFromStorage();
+if (savedGame) {
+  newWorldFromSeed(savedGame.seed);
+  applyTileDeltas(world, savedGame.tiles);
+  inventory.loadSlots(savedGame.inventory, savedGame.selected);
+  player.x = savedGame.playerX;
+  player.y = savedGame.playerY;
+  dayNight.cycleT = savedGame.dayNightT;
+} else {
+  newWorldFromSeed(WORLD_SEED);
+  resetInventoryDefaults();
+  spawnPlayerAtSurface();
+}
+
+function recenterCamera(): void {
+  camera.centerOn(player.x + player.width / 2, player.y + player.height / 2, window.innerWidth, window.innerHeight);
+  camera.clampToWorld(world.widthPx, world.heightPx, window.innerWidth, window.innerHeight);
+}
+recenterCamera();
+
+function saveGame(): void {
+  saveToStorage(buildSaveData(world, originalTiles, currentSeed, inventory, player, dayNight));
+}
+window.addEventListener("beforeunload", saveGame);
+
+function applyMenuAction(action: SaveMenuAction): void {
+  if (action === "erase-save") {
+    clearStorage();
+    return;
+  }
+  // novo mundo: seed aleatória, apaga o save atual e recomeça do zero
+  clearStorage();
+  newWorldFromSeed(Math.floor(Math.random() * 0xffffffff));
+  resetInventoryDefaults();
+  spawnPlayerAtSurface();
+  dayNight.cycleT = DAY_START_FRACTION;
+  recenterCamera();
+}
+
+let autosaveTimer = 0;
 let animTime = 0;
 
 function update(dt: number): void {
+  if (input.consumeKeyPress("F1")) saveMenu.toggle();
+  if (touchControls.consumeMenuButtonTap()) saveMenu.toggle();
+  touchControls.setMenuOpen(saveMenu.open);
+
+  if (saveMenu.open) {
+    if (input.consumeLeftPress()) {
+      const action = saveMenu.handlePointer(input.mouseX, input.mouseY);
+      if (action) applyMenuAction(action);
+    }
+    const tapPos = touchControls.consumeMenuTapPos();
+    if (tapPos) {
+      const action = saveMenu.handlePointer(tapPos.x, tapPos.y);
+      if (action) applyMenuAction(action);
+    }
+    return; // jogo pausado enquanto o menu está aberto
+  }
+
   animTime += dt;
   dayNight.update(dt);
   const crouch = input.isDown("KeyS") || input.isDown("ArrowDown") || touchControls.crouch;
@@ -99,6 +174,12 @@ function update(dt: number): void {
 
   updateTorchSparks(dt, particles, world, camera, window.innerWidth, window.innerHeight);
   particles.update(dt);
+
+  autosaveTimer += dt;
+  if (autosaveTimer >= SAVE_AUTOSAVE_INTERVAL) {
+    autosaveTimer = 0;
+    saveGame();
+  }
 }
 
 let fps = 0;
@@ -123,10 +204,20 @@ function render(): void {
   interaction.render(renderer.ctx, camera);
   hud.render(renderer.ctx, fps, inventory, player);
   touchControls.render(renderer.ctx);
+  saveMenu.render(renderer.ctx);
 }
 
 // handle de debug p/ inspeção manual e verificação automatizada
-(window as unknown as Record<string, unknown>).__terra = { player, world, camera, dayNight, inventory };
+(window as unknown as Record<string, unknown>).__terra = {
+  player,
+  world,
+  camera,
+  dayNight,
+  inventory,
+  saveGame,
+  clearSave: clearStorage,
+  getSeed: () => currentSeed,
+};
 
 let accumulator = 0;
 let lastTime = performance.now();

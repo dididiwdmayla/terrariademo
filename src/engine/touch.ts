@@ -13,6 +13,8 @@ import {
   TOUCH_JOYSTICK_KNOB_COLOR,
   TOUCH_JOYSTICK_KNOB_FRAC,
   TOUCH_JOYSTICK_RADIUS_FRAC,
+  TOUCH_MENU_BUTTON_MARGIN_FRAC,
+  TOUCH_MENU_BUTTON_SIZE_FRAC,
   TOUCH_RIGHT_ZONE_START_FRAC,
 } from "../config";
 import { hotbarSlotIndexAt, hotbarTopY } from "../ui/hud";
@@ -26,7 +28,7 @@ interface ButtonRect {
   size: number;
 }
 
-type TouchRole = { kind: "button"; button: ButtonKind } | { kind: "hotbar" } | { kind: "aim" };
+type TouchRole = { kind: "button"; button: ButtonKind } | { kind: "hotbar" } | { kind: "aim" } | { kind: "menu" };
 
 // Controles de toque estilo Terraria mobile: botões de movimento/pulo/agachar à esquerda
 // (segurar = ativo; agachar é toggle) e joystick flutuante de mira à direita (mineração/
@@ -53,6 +55,36 @@ export class TouchControls {
   private pendingHotbarSelect: number | null = null;
   private readonly touchRoles = new Map<number, TouchRole>();
   private readonly buttonTouchCount: Record<ButtonKind, number> = { left: 0, right: 0, jump: 0, crouch: 0 };
+
+  // botão discreto (canto superior direito) que abre/fecha o menu de save;
+  // enquanto o menu está aberto, todo outro toque é tratado como clique nele
+  // em vez de gameplay (movimento/hotbar/mira ficam inertes)
+  private menuOpen = false;
+  private menuButtonPending = false;
+  private menuTapPos: { x: number; y: number } | null = null;
+
+  setMenuOpen(open: boolean): void {
+    this.menuOpen = open;
+  }
+
+  consumeMenuButtonTap(): boolean {
+    const pending = this.menuButtonPending;
+    this.menuButtonPending = false;
+    return pending;
+  }
+
+  consumeMenuTapPos(): { x: number; y: number } | null {
+    const pos = this.menuTapPos;
+    this.menuTapPos = null;
+    return pos;
+  }
+
+  private menuButtonRect(): { x: number; y: number; size: number } {
+    const unit = this.viewportUnit();
+    const size = unit * TOUCH_MENU_BUTTON_SIZE_FRAC;
+    const margin = unit * TOUCH_MENU_BUTTON_MARGIN_FRAC;
+    return { x: window.innerWidth - margin - size, y: margin, size };
+  }
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.enabled = "ontouchstart" in window || navigator.maxTouchPoints > 0;
@@ -103,6 +135,20 @@ export class TouchControls {
     e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
       const { x, y } = this.touchPos(t);
+
+      const menuBtn = this.menuButtonRect();
+      if (x >= menuBtn.x && x <= menuBtn.x + menuBtn.size && y >= menuBtn.y && y <= menuBtn.y + menuBtn.size) {
+        this.menuButtonPending = true;
+        this.touchRoles.set(t.identifier, { kind: "menu" });
+        continue;
+      }
+
+      // menu aberto: qualquer outro toque é repassado como clique no menu, gameplay fica inerte
+      if (this.menuOpen) {
+        this.menuTapPos = { x, y };
+        this.touchRoles.set(t.identifier, { kind: "menu" });
+        continue;
+      }
 
       const hotbarIdx = hotbarSlotIndexAt(x, y);
       if (hotbarIdx !== null) {
@@ -188,6 +234,22 @@ export class TouchControls {
     if (!this.enabled) return;
     this.renderButtons(ctx);
     this.renderJoystick(ctx);
+    this.renderMenuButton(ctx);
+  }
+
+  private renderMenuButton(ctx: CanvasRenderingContext2D): void {
+    const { x, y, size } = this.menuButtonRect();
+    ctx.fillStyle = TOUCH_BUTTON_BG_COLOR;
+    ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = TOUCH_BUTTON_BORDER_COLOR;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+
+    ctx.fillStyle = TOUCH_BUTTON_ICON_COLOR;
+    ctx.font = `${Math.round(size * 0.55)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("☰", x + size / 2, y + size / 2 + 1);
   }
 
   private renderButtons(ctx: CanvasRenderingContext2D): void {
