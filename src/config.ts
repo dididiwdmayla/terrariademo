@@ -382,25 +382,39 @@ export const MINE_CRACK_COLOR = "rgba(20, 20, 20, 0.75)";
 export const PLACE_COOLDOWN = 0.15; // segundos entre colocações com botão segurado
 
 // --- Controles de toque (mobile, estilo Terraria) ---
-// Botões do D-pad (cruz): tamanho é fração da ALTURA da tela (não do menor lado),
-// garantindo alvo de toque >= ~15% da altura mesmo em paisagem. Posições/gaps
-// também em fração da altura, pra manter a proporção da cruz.
-export const TOUCH_DPAD_BUTTON_SIZE_FRAC = 0.16; // ~3x o tamanho antigo (12% do menor lado)
-export const TOUCH_DPAD_GAP_FRAC = 0.012;
-export const TOUCH_DPAD_MARGIN_FRAC = 0.02; // margem entre a cruz e a borda esquerda da tela
-export const TOUCH_BUTTON_FONT_FRAC = 0.065; // fração de min(innerWidth, innerHeight)
+// Botões: fração de min(innerWidth, innerHeight).
+export const TOUCH_BUTTON_FONT_FRAC = 0.065;
 export const TOUCH_BUTTON_BG_COLOR = "rgba(255, 255, 255, 0.25)"; // bem transparente em repouso
 export const TOUCH_BUTTON_BG_ACTIVE_COLOR = "rgba(255, 255, 255, 0.5)"; // mais opaco quando pressionado
 export const TOUCH_BUTTON_BORDER_COLOR = "rgba(255, 255, 255, 0.45)";
 export const TOUCH_BUTTON_ICON_COLOR = "rgba(255, 255, 255, 0.92)";
 
-export const TOUCH_JOYSTICK_RADIUS_FRAC = 0.12; // raio externo (alcance máx do polegar)
+// Joysticks: cores compartilhadas entre o de movimento (esquerda) e o de mira
+// (direita); ambos FIXOS num canto da tela (não nascem no primeiro toque).
 export const TOUCH_JOYSTICK_KNOB_FRAC = 0.45; // raio do manípulo, fração do raio externo
 export const TOUCH_JOYSTICK_DEADZONE_FRAC = 0.15; // fração do raio externo antes de registrar direção
 export const TOUCH_JOYSTICK_BG_COLOR = "rgba(255, 255, 255, 0.14)";
 export const TOUCH_JOYSTICK_BORDER_COLOR = "rgba(255, 255, 255, 0.4)";
 export const TOUCH_JOYSTICK_KNOB_COLOR = "rgba(255, 255, 255, 0.55)";
-export const TOUCH_RIGHT_ZONE_START_FRAC = 0.5; // fração da largura da tela onde nasce o joystick de mira; o resto (esquerda) é a zona de tap/lupa de precisão
+// multiplicador sobre o raio visual pra facilitar agarrar o manípulo (área de toque
+// um pouco maior que o círculo desenhado)
+export const TOUCH_JOYSTICK_HIT_RADIUS_MULT = 1.3;
+
+// --- Joystick de movimento (canto inferior esquerdo, fixo) ---
+export const TOUCH_MOVE_JOYSTICK_RADIUS_FRAC = 0.12; // raio externo, fração de min(w,h)
+export const TOUCH_MOVE_JOYSTICK_MARGIN_FRAC = 0.04; // da borda esquerda/inferior até o círculo
+export const TOUCH_MOVE_CROUCH_THRESHOLD_FRAC = 0.5; // fração do raio: puxar pra baixo além disso agacha (nível, não toggle)
+export const TOUCH_MOVE_FLICK_THRESHOLD_FRAC = 0.6; // fração do raio: acima disso conta como "levado pra cima" (flick)
+export const TOUCH_MOVE_DOUBLE_FLICK_WINDOW = 0.35; // segundos entre os dois flicks pra contar como duplo-flick = pulo
+export const TOUCH_MOVE_JUMP_PULSE = 0.15; // segundos que o pulo fica "pressionado" após o duplo-flick
+
+// --- Joystick de mira (canto inferior direito, fixo) ---
+export const TOUCH_AIM_JOYSTICK_RADIUS_FRAC = 0.12;
+export const TOUCH_AIM_JOYSTICK_MARGIN_FRAC = 0.04;
+
+// --- Botão de pulo dedicado (lado direito, acima do joystick de mira) ---
+export const TOUCH_JUMP_BUTTON_SIZE_FRAC = 0.16; // grande, alvo de toque generoso
+export const TOUCH_JUMP_BUTTON_GAP_FRAC = 0.03; // espaço entre o botão e o joystick de mira
 
 // --- Controles de toque: modo de precisão (tap exato / lupa), estilo Terraria mobile ---
 export const TOUCH_TAP_MAX_HOLD = 0.18; // segundos: toque solto antes disso é um tap instantâneo no tile exato

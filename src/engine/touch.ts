@@ -1,20 +1,21 @@
 import {
+  TOUCH_AIM_JOYSTICK_MARGIN_FRAC,
+  TOUCH_AIM_JOYSTICK_RADIUS_FRAC,
   TOUCH_BUTTON_BG_ACTIVE_COLOR,
   TOUCH_BUTTON_BG_COLOR,
   TOUCH_BUTTON_BORDER_COLOR,
   TOUCH_BUTTON_FONT_FRAC,
   TOUCH_BUTTON_ICON_COLOR,
-  TOUCH_DPAD_BUTTON_SIZE_FRAC,
-  TOUCH_DPAD_GAP_FRAC,
-  TOUCH_DPAD_MARGIN_FRAC,
   TOUCH_FULLSCREEN_BUTTON_GAP_FRAC,
   TOUCH_FULLSCREEN_BUTTON_SIZE_FRAC,
   TOUCH_JOYSTICK_BG_COLOR,
   TOUCH_JOYSTICK_BORDER_COLOR,
   TOUCH_JOYSTICK_DEADZONE_FRAC,
+  TOUCH_JOYSTICK_HIT_RADIUS_MULT,
   TOUCH_JOYSTICK_KNOB_COLOR,
   TOUCH_JOYSTICK_KNOB_FRAC,
-  TOUCH_JOYSTICK_RADIUS_FRAC,
+  TOUCH_JUMP_BUTTON_GAP_FRAC,
+  TOUCH_JUMP_BUTTON_SIZE_FRAC,
   TOUCH_MAGNIFIER_BORDER_COLOR,
   TOUCH_MAGNIFIER_CROSSHAIR_COLOR,
   TOUCH_MAGNIFIER_OFFSET_Y_FRAC,
@@ -22,59 +23,84 @@ import {
   TOUCH_MAGNIFIER_ZOOM,
   TOUCH_MENU_BUTTON_MARGIN_FRAC,
   TOUCH_MENU_BUTTON_SIZE_FRAC,
+  TOUCH_MOVE_CROUCH_THRESHOLD_FRAC,
+  TOUCH_MOVE_DOUBLE_FLICK_WINDOW,
+  TOUCH_MOVE_FLICK_THRESHOLD_FRAC,
+  TOUCH_MOVE_JOYSTICK_MARGIN_FRAC,
+  TOUCH_MOVE_JOYSTICK_RADIUS_FRAC,
+  TOUCH_MOVE_JUMP_PULSE,
   TOUCH_PRECISION_ACTIVATION_DELAY,
-  TOUCH_RIGHT_ZONE_START_FRAC,
   TOUCH_TAP_MAX_HOLD,
 } from "../config";
-import { hotbarSlotIndexAt, hotbarTopY } from "../ui/hud";
+import { hotbarSlotIndexAt } from "../ui/hud";
 
-type ButtonKind = "left" | "right" | "jump" | "crouch";
+interface Circle {
+  x: number;
+  y: number;
+  radius: number;
+}
 
-interface ButtonRect {
-  kind: ButtonKind;
+interface Rect {
   x: number;
   y: number;
   size: number;
 }
 
 type TouchRole =
-  | { kind: "button"; button: ButtonKind }
+  | { kind: "jump" }
   | { kind: "hotbar" }
+  | { kind: "move" }
   | { kind: "aim" }
   | { kind: "menu" }
   | { kind: "world" };
 
-// Controles de toque estilo Terraria mobile:
-// - Cluster esquerdo em cruz (D-pad): ◀/▶ nas pontas horizontais, ▲ (pulo) acima
-//   e ▼ (agachar, toggle) abaixo, entre os dois — segurar = ativo.
-// - Zona direita: joystick flutuante de mira (mineração/construção contínuas na
-//   direção apontada).
-// - Zona esquerda/central fora do D-pad: modo de precisão — tap rápido age no
-//   tile exato do toque; segurar invoca uma lupa que amplia a área sob o dedo
-//   (deslocada acima dele) com crosshair, e a ação passa a disparar continuamente
-//   no tile do crosshair após um pequeno atraso; arrastar move o alvo.
+// Controles de toque estilo Terraria mobile, réplica do layout de duas mãos:
+// - Joystick de movimento FIXO no canto inferior esquerdo: eixo horizontal anda,
+//   segurar pra baixo agacha (nível, não toggle), duplo-flick pra cima = pulo.
+// - Botão de pulo dedicado, grande, no lado direito (acima do joystick de mira) —
+//   pulo acessível pelas duas mãos.
+// - Joystick de mira FIXO no canto inferior direito (mineração/construção
+//   contínuas na direção apontada).
+// - Fora da área de qualquer controle: modo de precisão — tap rápido age no tile
+//   exato tocado; tocar e segurar invoca a lupa de precisão.
+// Despacho por toque: cada dedo só pertence ao controle em que TOCOU PRIMEIRO
+// (até soltar); toques que começam fora de todo controle são sempre interação
+// com o mundo, mesmo que estejam sobre a área visual de um joystick fixo se o
+// toque não caiu dentro do seu círculo de captura. Multi-touch pleno: mover,
+// pular e mirar/interagir funcionam ao mesmo tempo, cada dedo com seu papel.
 // Só se ativa em dispositivos com tela de toque; em desktop a classe fica inerte.
 export class TouchControls {
   readonly enabled: boolean;
 
   left = false;
   right = false;
-  jump = false;
-  crouch = false; // toggle: um toque agacha, outro levanta
+  crouch = false;
 
   aimActive = false;
   aimDirX = 0;
   aimDirY = 0;
 
+  get jump(): boolean {
+    return this.jumpButtonHeld || this.jumpFlickTimer > 0;
+  }
+
+  private jumpButtonHeld = false;
+  private jumpButtonTouchCount = 0;
+  private jumpFlickTimer = 0; // >0 enquanto o pulso sintético do duplo-flick estiver "pressionado"
+
+  private moveTouchId: number | null = null;
+  private moveCurX = 0;
+  private moveCurY = 0;
+  private moveFlickWasUp = false; // estado (subiu além do limiar) do frame anterior, pra detectar borda
+  private moveFlickPending = false; // já viu um flick pra cima, esperando o segundo dentro da janela
+  private moveFlickTimer = 0; // segundos desde o primeiro flick, só válido se moveFlickPending
+
   private aimTouchId: number | null = null;
-  private aimOriginX = 0;
-  private aimOriginY = 0;
   private aimCurX = 0;
   private aimCurY = 0;
 
   private pendingHotbarSelect: number | null = null;
   private readonly touchRoles = new Map<number, TouchRole>();
-  private readonly buttonTouchCount: Record<ButtonKind, number> = { left: 0, right: 0, jump: 0, crouch: 0 };
 
   // botão discreto (canto superior direito) que abre/fecha o menu de save;
   // enquanto o menu está aberto, todo outro toque é tratado como clique nele
@@ -83,7 +109,7 @@ export class TouchControls {
   private menuButtonPending = false;
   private menuTapPos: { x: number; y: number } | null = null;
 
-  // toque de precisão (tap exato / lupa) na zona esquerda/central, fora do D-pad
+  // toque de precisão (tap exato / lupa) fora da área de qualquer controle
   private worldTouchId: number | null = null;
   private worldCurX = 0;
   private worldCurY = 0;
@@ -110,8 +136,14 @@ export class TouchControls {
     return pos;
   }
 
-  // avança os temporizadores do modo de precisão; chamado a cada passo fixo do game loop
+  // avança temporizadores por passo fixo do game loop: duplo-flick de pulo e o modo de precisão
   update(dt: number): void {
+    if (this.moveFlickPending) {
+      this.moveFlickTimer += dt;
+      if (this.moveFlickTimer > TOUCH_MOVE_DOUBLE_FLICK_WINDOW) this.moveFlickPending = false;
+    }
+    if (this.jumpFlickTimer > 0) this.jumpFlickTimer = Math.max(0, this.jumpFlickTimer - dt);
+
     if (this.worldTouchId === null) return;
     this.worldHeldTime += dt;
     if (!this.worldMagnifierActive && this.worldHeldTime >= TOUCH_TAP_MAX_HOLD) {
@@ -146,19 +178,59 @@ export class TouchControls {
     return this.worldMagnifierActive;
   }
 
-  private menuButtonRect(): { x: number; y: number; size: number } {
+  private viewportUnit(): number {
+    return Math.min(window.innerWidth, window.innerHeight);
+  }
+
+  // origem fixa do joystick de movimento (canto inferior esquerdo)
+  private moveJoystickCircle(): Circle {
+    const unit = this.viewportUnit();
+    const radius = unit * TOUCH_MOVE_JOYSTICK_RADIUS_FRAC;
+    const margin = unit * TOUCH_MOVE_JOYSTICK_MARGIN_FRAC;
+    return { x: margin + radius, y: window.innerHeight - margin - radius, radius };
+  }
+
+  // origem fixa do joystick de mira (canto inferior direito)
+  private aimJoystickCircle(): Circle {
+    const unit = this.viewportUnit();
+    const radius = unit * TOUCH_AIM_JOYSTICK_RADIUS_FRAC;
+    const margin = unit * TOUCH_AIM_JOYSTICK_MARGIN_FRAC;
+    return { x: window.innerWidth - margin - radius, y: window.innerHeight - margin - radius, radius };
+  }
+
+  // botão de pulo dedicado: centralizado sobre o joystick de mira, acima dele
+  private jumpButtonRect(): Rect {
+    const unit = this.viewportUnit();
+    const size = unit * TOUCH_JUMP_BUTTON_SIZE_FRAC;
+    const gap = unit * TOUCH_JUMP_BUTTON_GAP_FRAC;
+    const aim = this.aimJoystickCircle();
+    return { x: aim.x - size / 2, y: aim.y - aim.radius - gap - size, size };
+  }
+
+  private menuButtonRect(): Rect {
     const unit = this.viewportUnit();
     const size = unit * TOUCH_MENU_BUTTON_SIZE_FRAC;
     const margin = unit * TOUCH_MENU_BUTTON_MARGIN_FRAC;
     return { x: window.innerWidth - margin - size, y: margin, size };
   }
 
-  private fullscreenButtonRect(): { x: number; y: number; size: number } {
+  private fullscreenButtonRect(): Rect {
     const unit = this.viewportUnit();
     const size = unit * TOUCH_FULLSCREEN_BUTTON_SIZE_FRAC;
     const gap = unit * TOUCH_FULLSCREEN_BUTTON_GAP_FRAC;
     const menuBtn = this.menuButtonRect();
     return { x: menuBtn.x - gap - size, y: menuBtn.y, size };
+  }
+
+  private hitsRect(x: number, y: number, rect: Rect): boolean {
+    return x >= rect.x && x <= rect.x + rect.size && y >= rect.y && y <= rect.y + rect.size;
+  }
+
+  private hitsCircle(x: number, y: number, circle: Circle, radiusMult = 1): boolean {
+    const dx = x - circle.x;
+    const dy = y - circle.y;
+    const r = circle.radius * radiusMult;
+    return dx * dx + dy * dy <= r * r;
   }
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -177,37 +249,6 @@ export class TouchControls {
     const idx = this.pendingHotbarSelect;
     this.pendingHotbarSelect = null;
     return idx;
-  }
-
-  private viewportUnit(): number {
-    return Math.min(window.innerWidth, window.innerHeight);
-  }
-
-  // cruz (D-pad): ▲ e ▼ na coluna do meio, ◀ e ▶ nas pontas da linha do meio;
-  // ancorada acima da hotbar e à margem esquerda da tela.
-  private buttonRects(): ButtonRect[] {
-    const size = window.innerHeight * TOUCH_DPAD_BUTTON_SIZE_FRAC;
-    const gap = window.innerHeight * TOUCH_DPAD_GAP_FRAC;
-    const margin = window.innerHeight * TOUCH_DPAD_MARGIN_FRAC;
-    const step = size + gap;
-
-    const left0 = margin;
-    const bottom = hotbarTopY() - gap;
-    const top0 = bottom - (size * 3 + gap * 2);
-
-    return [
-      { kind: "jump", x: left0 + step, y: top0, size },
-      { kind: "left", x: left0, y: top0 + step, size },
-      { kind: "right", x: left0 + step * 2, y: top0 + step, size },
-      { kind: "crouch", x: left0 + step, y: top0 + step * 2, size },
-    ];
-  }
-
-  private buttonAt(x: number, y: number): ButtonKind | null {
-    for (const rect of this.buttonRects()) {
-      if (x >= rect.x && x <= rect.x + rect.size && y >= rect.y && y <= rect.y + rect.size) return rect.kind;
-    }
-    return null;
   }
 
   private touchPos(t: Touch): { x: number; y: number } {
@@ -249,20 +290,30 @@ export class TouchControls {
     this.worldHeldTime = 0;
   }
 
+  private endMoveTouch(): void {
+    this.moveTouchId = null;
+    this.left = false;
+    this.right = false;
+    this.crouch = false;
+    // soltar o dedo cancela o gesto por completo: um flick pendente não "sobrevive" à troca de toque
+    this.moveFlickWasUp = false;
+    this.moveFlickPending = false;
+  }
+
   private onTouchStart(e: TouchEvent): void {
     e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
       const { x, y } = this.touchPos(t);
 
       const fsBtn = this.fullscreenButtonRect();
-      if (x >= fsBtn.x && x <= fsBtn.x + fsBtn.size && y >= fsBtn.y && y <= fsBtn.y + fsBtn.size) {
+      if (this.hitsRect(x, y, fsBtn)) {
         this.touchRoles.set(t.identifier, { kind: "menu" }); // reaproveita o papel inerte no touchend
         this.toggleFullscreen(); // precisa ser chamado direto no gesto de toque (síncrono)
         continue;
       }
 
       const menuBtn = this.menuButtonRect();
-      if (x >= menuBtn.x && x <= menuBtn.x + menuBtn.size && y >= menuBtn.y && y <= menuBtn.y + menuBtn.size) {
+      if (this.hitsRect(x, y, menuBtn)) {
         this.menuButtonPending = true;
         this.touchRoles.set(t.identifier, { kind: "menu" });
         continue;
@@ -282,31 +333,38 @@ export class TouchControls {
         continue;
       }
 
-      const btn = this.buttonAt(x, y);
-      if (btn) {
-        this.touchRoles.set(t.identifier, { kind: "button", button: btn });
-        this.buttonTouchCount[btn]++;
-        if (btn === "crouch") this.crouch = !this.crouch;
-        else if (btn === "left") this.left = true;
-        else if (btn === "right") this.right = true;
-        else if (btn === "jump") this.jump = true;
+      const jumpBtn = this.jumpButtonRect();
+      if (this.hitsRect(x, y, jumpBtn)) {
+        this.touchRoles.set(t.identifier, { kind: "jump" });
+        this.jumpButtonTouchCount++;
+        this.jumpButtonHeld = true;
         continue;
       }
 
-      if (x >= window.innerWidth * TOUCH_RIGHT_ZONE_START_FRAC) {
-        if (this.aimTouchId === null) {
-          this.touchRoles.set(t.identifier, { kind: "aim" });
-          this.aimTouchId = t.identifier;
-          this.aimOriginX = x;
-          this.aimOriginY = y;
-          this.aimCurX = x;
-          this.aimCurY = y;
-          this.aimActive = true;
-          this.updateAimVector();
-        }
-        // toque adicional na zona de mira enquanto ela já está ocupada: ignorado
-      } else if (this.worldTouchId === null) {
-        // zona esquerda/central fora do D-pad: modo de precisão (tap exato / lupa)
+      // toque começa DENTRO do círculo de captura de um joystick fixo -> pertence a ele até soltar;
+      // fora disso (mesmo que "do lado direito da tela") é sempre interação com o mundo
+      const moveCircle = this.moveJoystickCircle();
+      if (this.moveTouchId === null && this.hitsCircle(x, y, moveCircle, TOUCH_JOYSTICK_HIT_RADIUS_MULT)) {
+        this.touchRoles.set(t.identifier, { kind: "move" });
+        this.moveTouchId = t.identifier;
+        this.moveCurX = x;
+        this.moveCurY = y;
+        this.updateMoveVector();
+        continue;
+      }
+
+      const aimCircle = this.aimJoystickCircle();
+      if (this.aimTouchId === null && this.hitsCircle(x, y, aimCircle, TOUCH_JOYSTICK_HIT_RADIUS_MULT)) {
+        this.touchRoles.set(t.identifier, { kind: "aim" });
+        this.aimTouchId = t.identifier;
+        this.aimCurX = x;
+        this.aimCurY = y;
+        this.aimActive = true;
+        this.updateAimVector();
+        continue;
+      }
+
+      if (this.worldTouchId === null) {
         this.touchRoles.set(t.identifier, { kind: "world" });
         this.startWorldTouch(t.identifier, x, y);
       }
@@ -316,6 +374,13 @@ export class TouchControls {
   private onTouchMove(e: TouchEvent): void {
     e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
+      if (t.identifier === this.moveTouchId) {
+        const { x, y } = this.touchPos(t);
+        this.moveCurX = x;
+        this.moveCurY = y;
+        this.updateMoveVector();
+        continue;
+      }
       if (t.identifier === this.aimTouchId) {
         const { x, y } = this.touchPos(t);
         this.aimCurX = x;
@@ -338,13 +403,11 @@ export class TouchControls {
       if (!role) continue;
       this.touchRoles.delete(t.identifier);
 
-      if (role.kind === "button") {
-        this.buttonTouchCount[role.button] = Math.max(0, this.buttonTouchCount[role.button] - 1);
-        if (this.buttonTouchCount[role.button] > 0) continue;
-        if (role.button === "left") this.left = false;
-        else if (role.button === "right") this.right = false;
-        else if (role.button === "jump") this.jump = false;
-        // agachar é toggle: soltar o dedo não faz nada
+      if (role.kind === "jump") {
+        this.jumpButtonTouchCount = Math.max(0, this.jumpButtonTouchCount - 1);
+        if (this.jumpButtonTouchCount === 0) this.jumpButtonHeld = false;
+      } else if (role.kind === "move" && t.identifier === this.moveTouchId) {
+        this.endMoveTouch();
       } else if (role.kind === "aim" && t.identifier === this.aimTouchId) {
         this.aimTouchId = null;
         this.aimActive = false;
@@ -356,12 +419,38 @@ export class TouchControls {
     }
   }
 
+  // eixo horizontal -> esquerda/direita (digital); segurar pra baixo além do
+  // limiar agacha (nível); cruzar o limiar de cima duas vezes dentro da janela
+  // de duplo-flick dispara um pulso sintético de pulo.
+  private updateMoveVector(): void {
+    const circle = this.moveJoystickCircle();
+    const dx = this.moveCurX - circle.x;
+    const dy = this.moveCurY - circle.y;
+    const deadzone = circle.radius * TOUCH_JOYSTICK_DEADZONE_FRAC;
+
+    this.left = dx < -deadzone;
+    this.right = dx > deadzone;
+    this.crouch = dy > circle.radius * TOUCH_MOVE_CROUCH_THRESHOLD_FRAC;
+
+    const isUp = dy < -circle.radius * TOUCH_MOVE_FLICK_THRESHOLD_FRAC;
+    if (isUp && !this.moveFlickWasUp) {
+      if (this.moveFlickPending) {
+        this.moveFlickPending = false;
+        this.jumpFlickTimer = TOUCH_MOVE_JUMP_PULSE;
+      } else {
+        this.moveFlickPending = true;
+        this.moveFlickTimer = 0;
+      }
+    }
+    this.moveFlickWasUp = isUp;
+  }
+
   private updateAimVector(): void {
-    const maxRadius = this.viewportUnit() * TOUCH_JOYSTICK_RADIUS_FRAC;
-    const dx = this.aimCurX - this.aimOriginX;
-    const dy = this.aimCurY - this.aimOriginY;
+    const circle = this.aimJoystickCircle();
+    const dx = this.aimCurX - circle.x;
+    const dy = this.aimCurY - circle.y;
     const dist = Math.hypot(dx, dy);
-    const deadzone = maxRadius * TOUCH_JOYSTICK_DEADZONE_FRAC;
+    const deadzone = circle.radius * TOUCH_JOYSTICK_DEADZONE_FRAC;
     if (dist < deadzone) {
       this.aimDirX = 0;
       this.aimDirY = 0;
@@ -373,11 +462,55 @@ export class TouchControls {
 
   render(ctx: CanvasRenderingContext2D): void {
     if (!this.enabled) return;
-    this.renderButtons(ctx);
-    this.renderJoystick(ctx);
+    this.renderJoystick(ctx, this.moveJoystickCircle(), this.moveTouchId !== null, this.moveCurX, this.moveCurY);
+    this.renderJoystick(ctx, this.aimJoystickCircle(), this.aimTouchId !== null, this.aimCurX, this.aimCurY);
+    this.renderJumpButton(ctx);
     this.renderMenuButton(ctx);
     this.renderFullscreenButton(ctx);
     this.renderMagnifier(ctx);
+  }
+
+  // desenha a base (sempre visível, fixa) e o manípulo (no centro se solto, ou
+  // seguindo o dedo clampado ao raio se em uso); usado pelos dois joysticks.
+  private renderJoystick(ctx: CanvasRenderingContext2D, circle: Circle, active: boolean, curX: number, curY: number): void {
+    ctx.beginPath();
+    ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
+    ctx.fillStyle = TOUCH_JOYSTICK_BG_COLOR;
+    ctx.fill();
+    ctx.strokeStyle = TOUCH_JOYSTICK_BORDER_COLOR;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    let knobX = circle.x;
+    let knobY = circle.y;
+    if (active) {
+      const dx = curX - circle.x;
+      const dy = curY - circle.y;
+      const dist = Math.min(Math.hypot(dx, dy), circle.radius);
+      const angle = Math.atan2(dy, dx);
+      knobX = circle.x + Math.cos(angle) * dist;
+      knobY = circle.y + Math.sin(angle) * dist;
+    }
+    ctx.beginPath();
+    ctx.arc(knobX, knobY, circle.radius * TOUCH_JOYSTICK_KNOB_FRAC, 0, Math.PI * 2);
+    ctx.fillStyle = TOUCH_JOYSTICK_KNOB_COLOR;
+    ctx.fill();
+  }
+
+  private renderJumpButton(ctx: CanvasRenderingContext2D): void {
+    const unit = this.viewportUnit();
+    const rect = this.jumpButtonRect();
+    ctx.fillStyle = this.jumpButtonHeld ? TOUCH_BUTTON_BG_ACTIVE_COLOR : TOUCH_BUTTON_BG_COLOR;
+    ctx.fillRect(rect.x, rect.y, rect.size, rect.size);
+    ctx.strokeStyle = TOUCH_BUTTON_BORDER_COLOR;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(rect.x + 1, rect.y + 1, rect.size - 2, rect.size - 2);
+
+    ctx.fillStyle = TOUCH_BUTTON_ICON_COLOR;
+    ctx.font = `${Math.round(unit * TOUCH_BUTTON_FONT_FRAC)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("⬆", rect.x + rect.size / 2, rect.y + rect.size / 2 + 1);
   }
 
   private renderMenuButton(ctx: CanvasRenderingContext2D): void {
@@ -408,53 +541,6 @@ export class TouchControls {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("⛶", x + size / 2, y + size / 2 + 1);
-  }
-
-  private renderButtons(ctx: CanvasRenderingContext2D): void {
-    const unit = this.viewportUnit();
-    ctx.font = `${Math.round(unit * TOUCH_BUTTON_FONT_FRAC)}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    const icons: Record<ButtonKind, string> = { left: "◀", right: "▶", jump: "⬆", crouch: "⬇" };
-    const active: Record<ButtonKind, boolean> = { left: this.left, right: this.right, jump: this.jump, crouch: this.crouch };
-
-    for (const rect of this.buttonRects()) {
-      ctx.fillStyle = active[rect.kind] ? TOUCH_BUTTON_BG_ACTIVE_COLOR : TOUCH_BUTTON_BG_COLOR;
-      ctx.fillRect(rect.x, rect.y, rect.size, rect.size);
-      ctx.strokeStyle = TOUCH_BUTTON_BORDER_COLOR;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(rect.x + 1, rect.y + 1, rect.size - 2, rect.size - 2);
-
-      ctx.fillStyle = TOUCH_BUTTON_ICON_COLOR;
-      ctx.fillText(icons[rect.kind], rect.x + rect.size / 2, rect.y + rect.size / 2 + 1);
-    }
-  }
-
-  private renderJoystick(ctx: CanvasRenderingContext2D): void {
-    if (!this.aimActive) return;
-    const maxRadius = this.viewportUnit() * TOUCH_JOYSTICK_RADIUS_FRAC;
-    const knobRadius = maxRadius * TOUCH_JOYSTICK_KNOB_FRAC;
-
-    ctx.beginPath();
-    ctx.arc(this.aimOriginX, this.aimOriginY, maxRadius, 0, Math.PI * 2);
-    ctx.fillStyle = TOUCH_JOYSTICK_BG_COLOR;
-    ctx.fill();
-    ctx.strokeStyle = TOUCH_JOYSTICK_BORDER_COLOR;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    const dx = this.aimCurX - this.aimOriginX;
-    const dy = this.aimCurY - this.aimOriginY;
-    const dist = Math.min(Math.hypot(dx, dy), maxRadius);
-    const angle = Math.atan2(dy, dx);
-    const knobX = this.aimOriginX + Math.cos(angle) * dist;
-    const knobY = this.aimOriginY + Math.sin(angle) * dist;
-
-    ctx.beginPath();
-    ctx.arc(knobX, knobY, knobRadius, 0, Math.PI * 2);
-    ctx.fillStyle = TOUCH_JOYSTICK_KNOB_COLOR;
-    ctx.fill();
   }
 
   // Lupa de precisão: amostra (via drawImage do próprio canvas, já desenhado
