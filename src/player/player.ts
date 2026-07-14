@@ -5,17 +5,17 @@ import {
   PLAYER_BLINK_MAX_INTERVAL,
   PLAYER_BLINK_MIN_INTERVAL,
   PLAYER_COLORS,
-  PLAYER_CROUCH_FRAME_HELD,
-  PLAYER_CROUCH_FRAME_TRANSITION,
+  PLAYER_CROUCH_FRAME,
+  PLAYER_CROUCH_HEIGHT_BLEND_MS,
   PLAYER_CROUCH_HEIGHT_MULT,
   PLAYER_CROUCH_SHEET_COLS,
   PLAYER_CROUCH_SHEET_SRC,
-  PLAYER_CROUCH_TRANSITION_MS,
   PLAYER_EYE_H,
   PLAYER_EYE_W,
   PLAYER_EYE_X1,
   PLAYER_EYE_X2,
   PLAYER_EYE_Y,
+  PLAYER_FALL_ANIM_DELAY_MS,
   PLAYER_FALL_ARM_SPREAD,
   PLAYER_FALL_LEG_SPREAD,
   PLAYER_HAIR_HEIGHT,
@@ -180,9 +180,12 @@ export class Player {
   private idleFrameTimer = 0;
   private idleWhistling = false;
 
-  // agachar: frame de transição breve antes de manter o frame agachado
-  private wasCrouching = false;
-  private crouchTransitionTimer = 0;
+  // agachar: altura do desenho interpola suavemente entre de pé e agachado (pose única, sem frame de transição)
+  private crouchBlend = 0; // 0 = de pé, 1 = agachado
+
+  // queda: só assume a pose de queda após ficar no ar (vy >= 0) continuamente por PLAYER_FALL_ANIM_DELAY_MS
+  private airborneFallTimer = 0;
+  private fallExceededDelay = false;
 
   // reação procedural: squash & stretch, inclinação, movimento secundário (não afeta física/hitbox)
   private prevGrounded = false;
@@ -206,15 +209,36 @@ export class Player {
     this.mining = mining;
     this.mineAngle = mineAngle;
     const sprinting = sprintHeld && this.grounded && !this.crouching;
+    const prevState = this.state;
 
     if (!this.grounded) {
-      this.state = this.vy < 0 ? "jumping" : "falling";
-    } else if (this.crouching) {
-      this.state = "crouching";
-    } else if (Math.abs(this.vx) > 5) {
-      this.state = sprinting ? "running" : "walking";
+      if (this.vy < 0) {
+        // subindo: sempre pulo, nunca queda
+        this.airborneFallTimer = 0;
+        this.fallExceededDelay = false;
+        this.state = "jumping";
+      } else {
+        // caindo: só entra na pose de queda depois de PLAYER_FALL_ANIM_DELAY_MS contínuos no ar;
+        // antes disso mantém a animação que já estava tocando (pulos e desníveis pequenos não disparam a queda)
+        this.airborneFallTimer += dt;
+        this.fallExceededDelay = this.airborneFallTimer * 1000 >= PLAYER_FALL_ANIM_DELAY_MS;
+        if (this.fallExceededDelay) {
+          this.state = "falling";
+        } else if (prevState === "walking" || prevState === "running" || prevState === "idle") {
+          this.state = prevState;
+        } else {
+          this.state = Math.abs(this.vx) > 5 ? "walking" : "idle";
+        }
+      }
     } else {
-      this.state = "idle";
+      this.airborneFallTimer = 0;
+      if (this.crouching) {
+        this.state = "crouching";
+      } else if (Math.abs(this.vx) > 5) {
+        this.state = sprinting ? "running" : "walking";
+      } else {
+        this.state = "idle";
+      }
     }
 
     this.animTime += dt;
@@ -237,14 +261,11 @@ export class Player {
     this.idleWhistling = this.idleNoInputTimer >= PLAYER_IDLE_WHISTLE_DELAY;
     if (this.idleWhistling) this.idleFrameTimer += dt * PLAYER_IDLE_WHISTLE_FRAME_SPEED;
 
-    // agachar: frame de transição breve ao entrar no estado, depois mantém o frame agachado
-    if (this.state === "crouching") {
-      if (!this.wasCrouching) this.crouchTransitionTimer = PLAYER_CROUCH_TRANSITION_MS / 1000;
-      else this.crouchTransitionTimer = Math.max(0, this.crouchTransitionTimer - dt);
-    } else {
-      this.crouchTransitionTimer = 0;
-    }
-    this.wasCrouching = this.state === "crouching";
+    // agachar: altura do desenho interpola suavemente (~PLAYER_CROUCH_HEIGHT_BLEND_MS) em vez de trocar de golpe
+    const crouchTarget = this.state === "crouching" ? 1 : 0;
+    const crouchBlendStep = dt * (1000 / PLAYER_CROUCH_HEIGHT_BLEND_MS);
+    if (this.crouchBlend < crouchTarget) this.crouchBlend = Math.min(crouchTarget, this.crouchBlend + crouchBlendStep);
+    else if (this.crouchBlend > crouchTarget) this.crouchBlend = Math.max(crouchTarget, this.crouchBlend - crouchBlendStep);
 
     this.blinkTimer -= dt;
     if (this.blinkTimer <= 0) {
@@ -268,7 +289,8 @@ export class Player {
     if (justLanded) {
       this.landSquashTimer = PLAYER_LAND_SQUASH_DURATION;
       this.landSquashIntensity = Math.min(1, this.lastAirVy / MAX_FALL_SPEED);
-      this.landingFrameTimer = PLAYER_LANDING_FRAME_MS / 1000;
+      // frame de impacto só aparece se a queda durou mais que PLAYER_FALL_ANIM_DELAY_MS; senão, transição direta
+      this.landingFrameTimer = this.fallExceededDelay ? PLAYER_LANDING_FRAME_MS / 1000 : 0;
     }
     if (justJumped) {
       this.jumpAnticipationTimer = PLAYER_JUMP_ANTICIPATION_DURATION;
@@ -338,23 +360,34 @@ export class Player {
     return s;
   }
 
+  // Multiplicador de altura do desenho (1 = de pé, PLAYER_CROUCH_HEIGHT_MULT = agachado), interpolado por crouchBlend.
+  private crouchHeightMult(): number {
+    return 1 - this.crouchBlend * (1 - PLAYER_CROUCH_HEIGHT_MULT);
+  }
+
+  // Fase do golpe de picareta: oscila suavemente 0->1->0 (cosseno) em vez de serrote, pra não "resetar" no meio
+  // do balanço; swingCycle (0..1, dente-de-serra) decide só se a picareta desenha atrás ou na frente do corpo.
+  private pickaxeSwing(): { swingPhase: number; swingCycle: number } {
+    const swingCycle = (this.animTime * PLAYER_MINE_SWING_SPEED) % 1;
+    const swingPhase = 0.5 - 0.5 * Math.cos(swingCycle * Math.PI * 2);
+    return { swingPhase, swingCycle };
+  }
+
   // Escolhe o sheet e o índice do frame atual pro estado/fase de animação.
   private currentFrameSource(): { sheet: SpriteSheet; cols: number; frameIndex: number } {
     if (this.state === "crouching") {
-      const frameIndex = this.crouchTransitionTimer > 0 ? PLAYER_CROUCH_FRAME_TRANSITION : PLAYER_CROUCH_FRAME_HELD;
-      return { sheet: crouchSheet, cols: PLAYER_CROUCH_SHEET_COLS, frameIndex };
+      return { sheet: crouchSheet, cols: PLAYER_CROUCH_SHEET_COLS, frameIndex: PLAYER_CROUCH_FRAME };
     }
     if (this.landingFrameTimer > 0) {
       return { sheet: jumpSheet, cols: PLAYER_JUMP_SHEET_COLS, frameIndex: PLAYER_JUMP_FRAME_LANDING };
     }
-    if (this.state === "jumping" || this.state === "falling") {
-      const frameIndex =
-        this.jumpAnticipationFrameTimer > 0
-          ? PLAYER_JUMP_FRAME_ANTICIPATION
-          : this.vy < 0
-            ? PLAYER_JUMP_FRAME_RISING
-            : PLAYER_JUMP_FRAME_FALLING;
+    // "jumping" só ocorre subindo (vy < 0) e "falling" só depois do delay de queda (ver update())
+    if (this.state === "jumping") {
+      const frameIndex = this.jumpAnticipationFrameTimer > 0 ? PLAYER_JUMP_FRAME_ANTICIPATION : PLAYER_JUMP_FRAME_RISING;
       return { sheet: jumpSheet, cols: PLAYER_JUMP_SHEET_COLS, frameIndex };
+    }
+    if (this.state === "falling") {
+      return { sheet: jumpSheet, cols: PLAYER_JUMP_SHEET_COLS, frameIndex: PLAYER_JUMP_FRAME_FALLING };
     }
     if (this.state === "running") {
       const frameIndex = PLAYER_RUN_FRAME_ORDER[Math.floor(this.runFrameTimer) % PLAYER_RUN_FRAME_ORDER.length];
@@ -398,7 +431,7 @@ export class Player {
     const sx = col * PLAYER_SHEET_FRAME_W;
     const sy = row * PLAYER_SHEET_FRAME_H;
 
-    const vScale = (this.state === "crouching" ? PLAYER_CROUCH_HEIGHT_MULT : 1) * this.scaleY;
+    const vScale = this.crouchHeightMult() * this.scaleY;
     const hScale = this.scaleX;
 
     const drawH = PLAYER_SPRITE_HEIGHT_TILES * TILE_SIZE * z;
@@ -412,8 +445,8 @@ export class Player {
     const frameShoulderY = PLAYER_SPRITE_SHOULDER_Y * shoulderScale;
     const shoulderX = this.facing === 1 ? footX - drawW / 2 + frameShoulderX : footX + drawW / 2 - frameShoulderX;
     const shoulderY = footY - drawH + frameShoulderY;
-    const swingPhase = this.mining ? (this.animTime * PLAYER_MINE_SWING_SPEED) % 1 : 0;
-    const pickaxeBehind = this.mining && swingPhase < 0.5;
+    const { swingPhase, swingCycle } = this.mining ? this.pickaxeSwing() : { swingPhase: 0, swingCycle: 0 };
+    const pickaxeBehind = this.mining && swingCycle < 0.5;
 
     if (pickaxeBehind) this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
 
@@ -453,9 +486,9 @@ export class Player {
     const px = Math.round(s.x);
     const py = Math.round(s.y);
 
-    // agachar encolhe o desenho verticalmente ~30%, ancorado nos pés (hitbox intacta);
+    // agachar encolhe o desenho verticalmente ~30% (interpolado suavemente), ancorado nos pés (hitbox intacta);
     // combinado com squash/stretch de pouso/pulo (também ancorado nos pés)
-    const vScale = (this.state === "crouching" ? PLAYER_CROUCH_HEIGHT_MULT : 1) * this.scaleY;
+    const vScale = this.crouchHeightMult() * this.scaleY;
     const hScale = this.scaleX;
     const centerX = this.width / 2;
     const top = py + this.height * (1 - vScale) * z;
@@ -618,7 +651,8 @@ export class Player {
     ctx.fillRect(mapX(armX + dx), mapY(PLAYER_HEAD_HEIGHT + armYOffset), PLAYER_ARM_WIDTH * z, mapH(PLAYER_ARM_HEIGHT));
   }
 
-  // Braço da frente (estático); a picareta é desenhada por cima, girando em torno do ombro, ao minerar.
+  // Braço da frente: estático quando parado; ao minerar, só a picareta gira em torno do ombro
+  // (sem braço desenhado — evita o braço estático parecer "descolado" do golpe da picareta).
   private drawFrontArm(
     ctx: CanvasRenderingContext2D,
     px: number,
@@ -636,16 +670,17 @@ export class Player {
     const shoulderLocalY = PLAYER_HEAD_HEIGHT + armYOffset;
     const shoulderX = px + shoulderLocalX * z;
     const shoulderY = top + shoulderLocalY * vScale * z;
-    const armLen = PLAYER_ARM_HEIGHT * z;
-    const armW = PLAYER_ARM_WIDTH * z;
-
-    ctx.fillStyle = this.shaded(PLAYER_COLORS.braco);
-    ctx.fillRect(shoulderX - armW / 2, shoulderY, armW, armLen);
 
     if (this.mining) {
       const shoulderScale = (PLAYER_SPRITE_HEIGHT_TILES * TILE_SIZE * z) / PLAYER_SHEET_FRAME_H;
-      const swingPhase = (this.animTime * PLAYER_MINE_SWING_SPEED) % 1;
+      const { swingPhase } = this.pickaxeSwing();
       this.drawPickaxe(ctx, shoulderX, shoulderY, shoulderScale, swingPhase);
+      return;
     }
+
+    const armLen = PLAYER_ARM_HEIGHT * z;
+    const armW = PLAYER_ARM_WIDTH * z;
+    ctx.fillStyle = this.shaded(PLAYER_COLORS.braco);
+    ctx.fillRect(shoulderX - armW / 2, shoulderY, armW, armLen);
   }
 }

@@ -275,6 +275,9 @@ export const PLAYER_JUMP_FRAME_FALLING = 2;
 export const PLAYER_JUMP_FRAME_LANDING = 3;
 export const PLAYER_JUMP_ANTICIPATION_FRAME_MS = 80; // ms de antecipação no impulso do pulo
 export const PLAYER_LANDING_FRAME_MS = 100; // ms de frame de aterrissagem antes de voltar a idle/andar
+// tempo contínuo no ar caindo (vy >= 0) antes de trocar pra pose/frame de queda; evita flicker em
+// pulos e desníveis pequenos (o frame de impacto ao aterrissar só aparece se a queda passou desse tempo)
+export const PLAYER_FALL_ANIM_DELAY_MS = 1000;
 
 export const PLAYER_IDLE_SHEET_SRC = "/idle_sheet.png";
 export const PLAYER_IDLE_SHEET_COLS = 3; // grade 3x2, 6 frames
@@ -284,10 +287,9 @@ export const PLAYER_IDLE_WHISTLE_DELAY = 5; // s sem input antes de iniciar o ci
 export const PLAYER_IDLE_WHISTLE_FRAME_SPEED = 6; // frames/s do ciclo de assovio
 
 export const PLAYER_CROUCH_SHEET_SRC = "/crouch_sheet.png";
-export const PLAYER_CROUCH_SHEET_COLS = 2; // grade 2x2; só os frames 0 (transição) e 1 (agachado) são usados
-export const PLAYER_CROUCH_FRAME_TRANSITION = 0;
-export const PLAYER_CROUCH_FRAME_HELD = 1;
-export const PLAYER_CROUCH_TRANSITION_MS = 80; // ms do frame de transição ao agachar
+export const PLAYER_CROUCH_SHEET_COLS = 2; // grade 2x2; só o frame 0 (meio agachado) é usado como pose mantida
+export const PLAYER_CROUCH_FRAME = 0; // meio agachado; frame 1 (agachado profundo) não é mais usado
+export const PLAYER_CROUCH_HEIGHT_BLEND_MS = 120; // ms de interpolação suave da altura do desenho ao agachar/levantar
 
 // --- Player: picareta (desenhada e rotacionada por código ao minerar) ---
 export const PLAYER_PICKAXE_SRC = "/pickaxe.png";
