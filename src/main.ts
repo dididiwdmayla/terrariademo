@@ -159,12 +159,20 @@ function update(dt: number): void {
   const wheelDelta = input.consumeWheelDelta();
   if (wheelDelta !== 0) inventory.scroll(wheelDelta);
 
-  // enquanto o joystick de toque estiver ativo, ele substitui o mouse na mira de mineração/construção
+  // avança os temporizadores do modo de precisão (tap/lupa) do toque
+  touchControls.update(dt);
+  const touchPoint = touchControls.worldActionTarget();
+
+  // enquanto o joystick de toque estiver ativo, ele substitui o mouse na mira de mineração/construção;
+  // o tap exato/lupa de precisão (zona esquerda) tem prioridade sobre ambos
   const touchAimDir = touchControls.aimActive ? { x: touchControls.aimDirX, y: touchControls.aimDirY } : null;
-  interaction.update(dt, input, camera, world, player, inventory, particles, touchAimDir);
+  interaction.update(dt, input, camera, world, player, inventory, particles, touchAimDir, touchPoint);
 
   let mineAngle: number;
-  if (touchAimDir && (touchAimDir.x !== 0 || touchAimDir.y !== 0)) {
+  if (touchPoint) {
+    const playerScreen = camera.worldToScreen(player.x + player.width / 2, player.y + player.height / 2);
+    mineAngle = Math.atan2(touchPoint.y - playerScreen.y, touchPoint.x - playerScreen.x);
+  } else if (touchAimDir && (touchAimDir.x !== 0 || touchAimDir.y !== 0)) {
     mineAngle = Math.atan2(touchAimDir.y, touchAimDir.x);
   } else {
     const playerScreen = camera.worldToScreen(player.x + player.width / 2, player.y + player.height / 2);
@@ -214,6 +222,8 @@ function render(): void {
   camera,
   dayNight,
   inventory,
+  touchControls,
+  interaction,
   saveGame,
   clearSave: clearStorage,
   getSeed: () => currentSeed,
