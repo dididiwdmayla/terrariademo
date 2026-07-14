@@ -17,6 +17,7 @@ src/
   engine/
     camera.ts          Câmera (posição, zoom, conversão world->screen)
     input.ts            Captura de teclado/mouse
+    touch.ts             Controles de toque estilo Terraria mobile (botões de movimento/pulo/agachar, joystick flutuante de mira); inerte em dispositivos sem tela de toque
     renderer.ts        Setup do canvas, resize, clear, contexto 2D
     particles.ts         Sistema de partículas (fragmentos de mineração, poeira de aterrissagem, fagulhas de tocha)
   world/
@@ -56,5 +57,6 @@ src/
 - [x] Fase 6 — Gameplay (mineração, construção, itens) — mira por alcance, mineração com rachaduras em 3 estágios, construção em tile de ar adjacente a sólido sem sobrepor o player, inventário simples integrado à hotbar
 - [x] Fase 7 — Iluminação (luz por tile 0-15 via BFS em dois canais céu/blocos, relight incremental por caixa, tocha colocável com chama em flicker, overlay de escuridão suavizado, ciclo dia/noite de 10 min com crepúsculo e estrelas procedurais)
 - [x] Fase 8 — Polimento visual (textura procedural por tile determinística por hash: specks/pedrinhas na terra, rachaduras na pedra, brilho fixo + cintilância lenta no ouro, tufos de grama; background parallax com 3 camadas de colinas e nuvens procedurais, escurecendo à noite; partículas de fragmentos ao minerar, poeira ao aterrissar de queda alta e fagulhas subindo das tochas)
+- [x] Fase 9 — Controles de toque (mobile) — botões de movimento/pulo/agachar (agachar em toggle) ancorados acima da hotbar, joystick flutuante de mira no lado direito que substitui o mouse (mineração/construção contínuas por raycast na direção apontada), hotbar selecionável por toque, multi-touch, touch-action none; tudo inerte em dispositivos sem tela de toque
 
 > Atualize esta seção ao final de cada fase concluída, marcando o item correspondente.
