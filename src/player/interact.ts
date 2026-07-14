@@ -15,7 +15,13 @@ import type { World } from "../world/world";
 import type { Player } from "./player";
 import type { Inventory } from "./inventory";
 
-// Mira do mouse, mineração (progresso proporcional à dureza) e construção.
+// direção normalizada de mira (mundo), usada pelo joystick de toque no lugar do cursor do mouse
+export interface TouchAimDir {
+  x: number;
+  y: number;
+}
+
+// Mira do mouse (ou joystick de toque), mineração (progresso proporcional à dureza) e construção.
 export class Interaction {
   targetTx = 0;
   targetTy = 0;
@@ -31,7 +37,23 @@ export class Interaction {
   private mineFraction = 0;
   private placeCooldown = 0;
 
-  update(dt: number, input: Input, camera: Camera, world: World, player: Player, inventory: Inventory, particles: Particles): void {
+  update(
+    dt: number,
+    input: Input,
+    camera: Camera,
+    world: World,
+    player: Player,
+    inventory: Inventory,
+    particles: Particles,
+    touchAimDir: TouchAimDir | null = null,
+  ): void {
+    this.placeCooldown = Math.max(0, this.placeCooldown - dt);
+
+    if (touchAimDir) {
+      this.updateTouchAim(dt, touchAimDir, world, player, inventory, particles);
+      return;
+    }
+
     const worldPos = camera.screenToWorld(input.mouseX, input.mouseY);
     const tx = Math.floor(worldPos.x / TILE_SIZE);
     const ty = Math.floor(worldPos.y / TILE_SIZE);
@@ -49,8 +71,6 @@ export class Interaction {
     this.targetTy = ty;
     this.targetInRange = inRange;
 
-    this.placeCooldown = Math.max(0, this.placeCooldown - dt);
-
     this.updateMining(dt, input, world, tx, ty, inRange, inventory, particles);
 
     // o latch cobre cliques down+up mais rápidos que um passo do update
@@ -58,6 +78,84 @@ export class Interaction {
     if (rightActive && inRange && this.placeCooldown <= 0) {
       if (this.tryPlace(tx, ty, world, player, inventory)) this.placeCooldown = PLACE_COOLDOWN;
     }
+  }
+
+  // enquanto o joystick de mira estiver ativo, minera continuamente o tile minerável mais próximo
+  // e coloca continuamente no tile vazio válido mais próximo, ambos na direção apontada
+  private updateTouchAim(
+    dt: number,
+    dir: TouchAimDir,
+    world: World,
+    player: Player,
+    inventory: Inventory,
+    particles: Particles,
+  ): void {
+    if (dir.x === 0 && dir.y === 0) {
+      this.resetMining();
+      this.targetInRange = false;
+      return;
+    }
+
+    const originX = player.x + player.width / 2;
+    const originY = player.y + player.height / 2;
+    const rangePx = MINE_RANGE_TILES * TILE_SIZE;
+
+    const mineTarget = this.raycastTile(originX, originY, dir.x, dir.y, rangePx, (tx, ty) => {
+      const tile = world.getTile(tx, ty);
+      return tile !== TileType.AR && TILE_PROPS[tile].dureza !== Infinity;
+    });
+
+    if (mineTarget) {
+      this.targetTx = mineTarget.tx;
+      this.targetTy = mineTarget.ty;
+      this.targetInRange = true;
+      this.tryMine(dt, world, mineTarget.tx, mineTarget.ty, inventory, particles);
+    } else {
+      this.resetMining();
+    }
+
+    const placeTarget = this.raycastTile(originX, originY, dir.x, dir.y, rangePx, (tx, ty) =>
+      this.canPlaceAt(tx, ty, world, player, inventory),
+    );
+    if (placeTarget) {
+      if (!mineTarget) {
+        this.targetTx = placeTarget.tx;
+        this.targetTy = placeTarget.ty;
+        this.targetInRange = true;
+      }
+      if (this.placeCooldown <= 0 && this.tryPlace(placeTarget.tx, placeTarget.ty, world, player, inventory)) {
+        this.placeCooldown = PLACE_COOLDOWN;
+      }
+    } else if (!mineTarget) {
+      this.targetInRange = false;
+    }
+  }
+
+  // caminha em passos de um tile a partir de (originX, originY) na direção (dirX, dirY) até maxDist,
+  // retornando o primeiro tile que satisfaz o predicado (o mais próximo do jogador)
+  private raycastTile(
+    originX: number,
+    originY: number,
+    dirX: number,
+    dirY: number,
+    maxDist: number,
+    predicate: (tx: number, ty: number) => boolean,
+  ): { tx: number; ty: number } | null {
+    const steps = Math.ceil(maxDist / TILE_SIZE);
+    let lastTx = NaN;
+    let lastTy = NaN;
+    for (let i = 1; i <= steps; i++) {
+      const d = Math.min(i * TILE_SIZE, maxDist);
+      const wx = originX + dirX * d;
+      const wy = originY + dirY * d;
+      const tx = Math.floor(wx / TILE_SIZE);
+      const ty = Math.floor(wy / TILE_SIZE);
+      if (tx === lastTx && ty === lastTy) continue;
+      lastTx = tx;
+      lastTy = ty;
+      if (predicate(tx, ty)) return { tx, ty };
+    }
+    return null;
   }
 
   private updateMining(
@@ -74,7 +172,10 @@ export class Interaction {
       this.resetMining();
       return;
     }
+    this.tryMine(dt, world, tx, ty, inventory, particles);
+  }
 
+  private tryMine(dt: number, world: World, tx: number, ty: number, inventory: Inventory, particles: Particles): void {
     const tile = world.getTile(tx, ty);
     const props = TILE_PROPS[tile];
     // minerável = qualquer tile não-ar destrutível (inclui tocha, que não é sólida)
@@ -108,7 +209,7 @@ export class Interaction {
     this.mineFraction = 0;
   }
 
-  private tryPlace(tx: number, ty: number, world: World, player: Player, inventory: Inventory): boolean {
+  private canPlaceAt(tx: number, ty: number, world: World, player: Player, inventory: Inventory): boolean {
     if (world.getTile(tx, ty) !== TileType.AR) return false;
 
     const slot = inventory.selectedSlot();
@@ -133,6 +234,13 @@ export class Interaction {
       if (overlapsPlayer) return false;
     }
 
+    return true;
+  }
+
+  private tryPlace(tx: number, ty: number, world: World, player: Player, inventory: Inventory): boolean {
+    if (!this.canPlaceAt(tx, ty, world, player, inventory)) return false;
+
+    const slot = inventory.selectedSlot()!;
     world.setTile(tx, ty, slot.tile);
     inventory.consumeSelected(1);
     return true;

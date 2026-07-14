@@ -24,6 +24,29 @@ import { TILE_VARIANTS } from "../world/tiles";
 import type { Inventory } from "../player/inventory";
 import type { Player } from "../player/player";
 
+function hotbarLayout(): { startX: number; y: number } {
+  const totalW = INVENTORY_SLOTS * HOTBAR_SLOT_SIZE + (INVENTORY_SLOTS - 1) * HOTBAR_SLOT_GAP;
+  const startX = Math.round((window.innerWidth - totalW) / 2);
+  const y = Math.round(window.innerHeight - HOTBAR_MARGIN_BOTTOM - HOTBAR_SLOT_SIZE);
+  return { startX, y };
+}
+
+// índice do slot da hotbar sob um ponto de tela (px), ou null se fora dela; usado pelo toque
+export function hotbarSlotIndexAt(px: number, py: number): number | null {
+  const { startX, y } = hotbarLayout();
+  if (py < y || py > y + HOTBAR_SLOT_SIZE) return null;
+  for (let i = 0; i < INVENTORY_SLOTS; i++) {
+    const x = startX + i * (HOTBAR_SLOT_SIZE + HOTBAR_SLOT_GAP);
+    if (px >= x && px <= x + HOTBAR_SLOT_SIZE) return i;
+  }
+  return null;
+}
+
+// topo da hotbar em px de tela; usado pelos controles de toque p/ ancorar os botões acima dela sem sobrepor
+export function hotbarTopY(): number {
+  return hotbarLayout().y;
+}
+
 export class Hud {
   render(ctx: CanvasRenderingContext2D, fps: number, inventory: Inventory, player: Player): void {
     ctx.font = HUD_FONT;
@@ -58,9 +81,7 @@ export class Hud {
   }
 
   private renderHotbar(ctx: CanvasRenderingContext2D, inventory: Inventory): void {
-    const totalW = INVENTORY_SLOTS * HOTBAR_SLOT_SIZE + (INVENTORY_SLOTS - 1) * HOTBAR_SLOT_GAP;
-    const startX = Math.round((window.innerWidth - totalW) / 2);
-    const y = Math.round(window.innerHeight - HOTBAR_MARGIN_BOTTOM - HOTBAR_SLOT_SIZE);
+    const { startX, y } = hotbarLayout();
 
     ctx.font = HOTBAR_FONT;
 

@@ -1,6 +1,7 @@
 import { Renderer } from "./engine/renderer";
 import { Camera } from "./engine/camera";
 import { Input } from "./engine/input";
+import { TouchControls } from "./engine/touch";
 import { Particles } from "./engine/particles";
 import { World } from "./world/world";
 import { generateWorld } from "./world/gen";
@@ -28,6 +29,7 @@ const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 const camera = new Camera();
 const input = new Input(canvas);
+const touchControls = new TouchControls(canvas);
 const hud = new Hud();
 const inventory = new Inventory();
 const interaction = new Interaction();
@@ -53,12 +55,12 @@ let animTime = 0;
 function update(dt: number): void {
   animTime += dt;
   dayNight.update(dt);
-  const crouch = input.isDown("KeyS") || input.isDown("ArrowDown");
+  const crouch = input.isDown("KeyS") || input.isDown("ArrowDown") || touchControls.crouch;
   const sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
   const controls: Controls = {
-    left: input.isDown("KeyA") || input.isDown("ArrowLeft"),
-    right: input.isDown("KeyD") || input.isDown("ArrowRight"),
-    jump: input.isDown("Space") || input.isDown("KeyW") || input.isDown("ArrowUp"),
+    left: input.isDown("KeyA") || input.isDown("ArrowLeft") || touchControls.left,
+    right: input.isDown("KeyD") || input.isDown("ArrowRight") || touchControls.right,
+    jump: input.isDown("Space") || input.isDown("KeyW") || input.isDown("ArrowUp") || touchControls.jump,
     crouch,
     sprint,
   };
@@ -77,13 +79,22 @@ function update(dt: number): void {
   for (let i = 0; i < 9; i++) {
     if (input.isDown(`Digit${i + 1}`)) inventory.select(i);
   }
+  const touchHotbarIdx = touchControls.consumeHotbarSelect();
+  if (touchHotbarIdx !== null) inventory.select(touchHotbarIdx);
   const wheelDelta = input.consumeWheelDelta();
   if (wheelDelta !== 0) inventory.scroll(wheelDelta);
 
-  interaction.update(dt, input, camera, world, player, inventory, particles);
+  // enquanto o joystick de toque estiver ativo, ele substitui o mouse na mira de mineração/construção
+  const touchAimDir = touchControls.aimActive ? { x: touchControls.aimDirX, y: touchControls.aimDirY } : null;
+  interaction.update(dt, input, camera, world, player, inventory, particles, touchAimDir);
 
-  const playerScreen = camera.worldToScreen(player.x + player.width / 2, player.y + player.height / 2);
-  const mineAngle = Math.atan2(input.mouseY - playerScreen.y, input.mouseX - playerScreen.x);
+  let mineAngle: number;
+  if (touchAimDir && (touchAimDir.x !== 0 || touchAimDir.y !== 0)) {
+    mineAngle = Math.atan2(touchAimDir.y, touchAimDir.x);
+  } else {
+    const playerScreen = camera.worldToScreen(player.x + player.width / 2, player.y + player.height / 2);
+    mineAngle = Math.atan2(input.mouseY - playerScreen.y, input.mouseX - playerScreen.x);
+  }
   player.update(dt, crouch, sprint, interaction.isMining(), mineAngle);
 
   updateTorchSparks(dt, particles, world, camera, window.innerWidth, window.innerHeight);
@@ -111,6 +122,7 @@ function render(): void {
   particles.render(renderer.ctx, camera, window.innerWidth, window.innerHeight);
   interaction.render(renderer.ctx, camera);
   hud.render(renderer.ctx, fps, inventory, player);
+  touchControls.render(renderer.ctx);
 }
 
 // handle de debug p/ inspeção manual e verificação automatizada

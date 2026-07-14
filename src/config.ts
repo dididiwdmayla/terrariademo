@@ -379,6 +379,25 @@ export const MINE_HIGHLIGHT_COLOR = "rgba(255, 255, 255, 0.85)";
 export const MINE_CRACK_COLOR = "rgba(20, 20, 20, 0.75)";
 export const PLACE_COOLDOWN = 0.15; // segundos entre colocações com botão segurado
 
+// --- Controles de toque (mobile, estilo Terraria) ---
+// Todos os tamanhos/posições são frações de min(innerWidth, innerHeight), pra escalar com a tela.
+export const TOUCH_BUTTON_SIZE_FRAC = 0.12; // botões de movimento (esquerda)
+export const TOUCH_BUTTON_GAP_FRAC = 0.025;
+export const TOUCH_BUTTON_MARGIN_FRAC = 0.035;
+export const TOUCH_BUTTON_FONT_FRAC = 0.05;
+export const TOUCH_BUTTON_BG_COLOR = "rgba(255, 255, 255, 0.16)";
+export const TOUCH_BUTTON_BG_ACTIVE_COLOR = "rgba(255, 255, 255, 0.38)";
+export const TOUCH_BUTTON_BORDER_COLOR = "rgba(255, 255, 255, 0.45)";
+export const TOUCH_BUTTON_ICON_COLOR = "rgba(255, 255, 255, 0.92)";
+
+export const TOUCH_JOYSTICK_RADIUS_FRAC = 0.12; // raio externo (alcance máx do polegar)
+export const TOUCH_JOYSTICK_KNOB_FRAC = 0.45; // raio do manípulo, fração do raio externo
+export const TOUCH_JOYSTICK_DEADZONE_FRAC = 0.15; // fração do raio externo antes de registrar direção
+export const TOUCH_JOYSTICK_BG_COLOR = "rgba(255, 255, 255, 0.14)";
+export const TOUCH_JOYSTICK_BORDER_COLOR = "rgba(255, 255, 255, 0.4)";
+export const TOUCH_JOYSTICK_KNOB_COLOR = "rgba(255, 255, 255, 0.55)";
+export const TOUCH_RIGHT_ZONE_START_FRAC = 0.5; // fração da largura da tela onde nasce o joystick de mira
+
 // --- Inventário / Hotbar ---
 export const INVENTORY_SLOTS = 9;
 export const INVENTORY_MAX_STACK = 999;
