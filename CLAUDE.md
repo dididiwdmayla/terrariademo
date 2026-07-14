@@ -30,13 +30,15 @@ src/
     torches.ts          Desenho dinâmico das tochas (chama com flicker procedural) + fagulhas
     sparkle.ts           Cintilância lenta e dinâmica dos tiles de minério de ouro visíveis
     parallax.ts          Background com camadas de colinas distantes e nuvens procedurais, com parallax e ciclo dia/noite
+    save.ts                Serialização do save (delta de tiles vs. mundo gerado pela seed, inventário, posição, ciclo dia/noite) + localStorage
   player/
     player.ts            Estado do jogador + desenho procedural
     physics.ts           Física de plataforma (gravidade, aceleração/fricção, pulo variável, coyote time, colisão AABB por eixo)
-    inventory.ts          Inventário simples (9 slots, stack até 999)
-    interact.ts             Mira do mouse, mineração (progresso por dureza + rachaduras) e construção
+    inventory.ts          Inventário simples (9 slots): blocos/tochas empilham até 999, ferramentas (picareta) ocupam um slot e não empilham/consomem
+    interact.ts             Mira do mouse, ação por item selecionado (picareta só minera, bloco/tocha só constrói), mineração (progresso por dureza + rachaduras) e construção
   ui/
-    hud.ts                Interface (fps, barra de vida, hotbar de 9 slots)
+    hud.ts                Interface (fps, barra de vida, hotbar de 9 slots com ícone de imagem p/ ferramentas)
+    savemenu.ts          Mini-menu de save (F1 / botão de toque): novo mundo (nova seed) e apagar save
 ```
 
 ## Convenções
@@ -58,5 +60,6 @@ src/
 - [x] Fase 7 — Iluminação (luz por tile 0-15 via BFS em dois canais céu/blocos, relight incremental por caixa, tocha colocável com chama em flicker, overlay de escuridão suavizado, ciclo dia/noite de 10 min com crepúsculo e estrelas procedurais)
 - [x] Fase 8 — Polimento visual (textura procedural por tile determinística por hash: specks/pedrinhas na terra, rachaduras na pedra, brilho fixo + cintilância lenta no ouro, tufos de grama; background parallax com 3 camadas de colinas e nuvens procedurais, escurecendo à noite; partículas de fragmentos ao minerar, poeira ao aterrissar de queda alta e fagulhas subindo das tochas)
 - [x] Fase 9 — Controles de toque (mobile) — botões de movimento/pulo/agachar (agachar em toggle) ancorados acima da hotbar, joystick flutuante de mira no lado direito que substitui o mouse (mineração/construção contínuas por raycast na direção apontada), hotbar selecionável por toque, multi-touch, touch-action none; tudo inerte em dispositivos sem tela de toque
+- [x] Fase 10 — Picareta como item + save/load — picareta é um item de ferramenta (`ToolType.PICARETA`, não empilhável/consumível/colocável) com ícone de imagem (`public/pickaxe.png`) no slot 1 da hotbar; a ação (clique/joystick) é determinada pelo item selecionado — picareta só minera, bloco/tocha só constrói, slot vazio/sem ação não faz nada, e sem picareta selecionada os tiles não recebem dano de mineração; o highlight do tile mirado muda de cor por modo (quebra/construção/neutro). Save/load em `localStorage`: delta de tiles vs. o mundo gerado pela seed (regenerável), inventário completo, posição do player e hora do ciclo dia/noite; auto-save a cada 30s e no `beforeunload`, carregado automaticamente ao abrir se houver save válido; save corrompido ou de versão antiga é descartado sem travar (gera o mundo padrão). Menu F1 (teclado) / botão discreto no canto (toque) com "Novo mundo" (nova seed, apaga o save) e "Apagar save".
 
 > Atualize esta seção ao final de cada fase concluída, marcando o item correspondente.

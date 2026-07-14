@@ -1,10 +1,12 @@
 import {
+  EMPTY_HIGHLIGHT_COLOR,
   MINE_CRACK_COLOR,
   MINE_CRACK_STAGES,
   MINE_HIGHLIGHT_COLOR,
   MINE_RANGE_TILES,
   MINE_SECONDS_PER_HARDNESS,
   PLACE_COOLDOWN,
+  PLACE_HIGHLIGHT_COLOR,
   TILE_SIZE,
 } from "../config";
 import { TILE_DROP, TILE_PROPS, TileType } from "../world/tiles";
@@ -13,7 +15,7 @@ import type { Input } from "../engine/input";
 import type { Particles } from "../engine/particles";
 import type { World } from "../world/world";
 import type { Player } from "./player";
-import type { Inventory } from "./inventory";
+import { TOOL_PROPS, type Inventory } from "./inventory";
 
 // direção normalizada de mira (mundo), usada pelo joystick de toque no lugar do cursor do mouse
 export interface TouchAimDir {
@@ -21,7 +23,12 @@ export interface TouchAimDir {
   y: number;
 }
 
-// Mira do mouse (ou joystick de toque), mineração (progresso proporcional à dureza) e construção.
+// modo da ação determinado pelo item selecionado: picareta só minera, bloco/tocha só constrói
+type InteractionMode = "mine" | "place" | "none";
+
+// Mira do mouse (ou joystick de toque). A ação (clique esquerdo/joystick) minera
+// com a picareta selecionada ou constrói com um bloco/tocha selecionado — nunca
+// as duas coisas ao mesmo tempo, e nada acontece com o slot vazio ou sem ação.
 export class Interaction {
   targetTx = 0;
   targetTy = 0;
@@ -36,6 +43,7 @@ export class Interaction {
   private mineProgress = 0;
   private mineFraction = 0;
   private placeCooldown = 0;
+  private mode: InteractionMode = "none";
 
   update(
     dt: number,
@@ -48,6 +56,7 @@ export class Interaction {
     touchAimDir: TouchAimDir | null = null,
   ): void {
     this.placeCooldown = Math.max(0, this.placeCooldown - dt);
+    this.mode = this.computeMode(inventory);
 
     if (touchAimDir) {
       this.updateTouchAim(dt, touchAimDir, world, player, inventory, particles);
@@ -80,8 +89,18 @@ export class Interaction {
     }
   }
 
+  // picareta selecionada -> "mine"; bloco/tocha selecionado -> "place"; slot vazio
+  // ou item sem ação associada -> "none" (nenhuma ação acontece)
+  private computeMode(inventory: Inventory): InteractionMode {
+    const slot = inventory.selectedSlot();
+    if (!slot) return "none";
+    if (slot.kind === "tool") return TOOL_PROPS[slot.tool].minesTiles ? "mine" : "none";
+    return "place";
+  }
+
   // enquanto o joystick de mira estiver ativo, minera continuamente o tile minerável mais próximo
-  // e coloca continuamente no tile vazio válido mais próximo, ambos na direção apontada
+  // (só se o modo for "mine") ou coloca continuamente no tile vazio válido mais próximo (só se "place"),
+  // ambos na direção apontada — nunca as duas buscas ao mesmo tempo
   private updateTouchAim(
     dt: number,
     dir: TouchAimDir,
@@ -100,10 +119,13 @@ export class Interaction {
     const originY = player.y + player.height / 2;
     const rangePx = MINE_RANGE_TILES * TILE_SIZE;
 
-    const mineTarget = this.raycastTile(originX, originY, dir.x, dir.y, rangePx, (tx, ty) => {
-      const tile = world.getTile(tx, ty);
-      return tile !== TileType.AR && TILE_PROPS[tile].dureza !== Infinity;
-    });
+    const mineTarget =
+      this.mode === "mine"
+        ? this.raycastTile(originX, originY, dir.x, dir.y, rangePx, (tx, ty) => {
+            const tile = world.getTile(tx, ty);
+            return tile !== TileType.AR && TILE_PROPS[tile].dureza !== Infinity;
+          })
+        : null;
 
     if (mineTarget) {
       this.targetTx = mineTarget.tx;
@@ -114,9 +136,12 @@ export class Interaction {
       this.resetMining();
     }
 
-    const placeTarget = this.raycastTile(originX, originY, dir.x, dir.y, rangePx, (tx, ty) =>
-      this.canPlaceAt(tx, ty, world, player, inventory),
-    );
+    const placeTarget =
+      this.mode === "place"
+        ? this.raycastTile(originX, originY, dir.x, dir.y, rangePx, (tx, ty) =>
+            this.canPlaceAt(tx, ty, world, player, inventory),
+          )
+        : null;
     if (placeTarget) {
       if (!mineTarget) {
         this.targetTx = placeTarget.tx;
@@ -176,6 +201,12 @@ export class Interaction {
   }
 
   private tryMine(dt: number, world: World, tx: number, ty: number, inventory: Inventory, particles: Particles): void {
+    // sem picareta selecionada, minerar é impossível: o tile não recebe dano
+    if (this.mode !== "mine") {
+      this.resetMining();
+      return;
+    }
+
     const tile = world.getTile(tx, ty);
     const props = TILE_PROPS[tile];
     // minerável = qualquer tile não-ar destrutível (inclui tocha, que não é sólida)
@@ -213,7 +244,7 @@ export class Interaction {
     if (world.getTile(tx, ty) !== TileType.AR) return false;
 
     const slot = inventory.selectedSlot();
-    if (!slot || slot.count <= 0) return false;
+    if (!slot || slot.kind !== "tile" || slot.count <= 0) return false;
 
     const adjacentSolid =
       TILE_PROPS[world.getTile(tx + 1, ty)].solido ||
@@ -240,7 +271,7 @@ export class Interaction {
   private tryPlace(tx: number, ty: number, world: World, player: Player, inventory: Inventory): boolean {
     if (!this.canPlaceAt(tx, ty, world, player, inventory)) return false;
 
-    const slot = inventory.selectedSlot()!;
+    const slot = inventory.selectedSlot() as { kind: "tile"; tile: TileType; count: number };
     world.setTile(tx, ty, slot.tile);
     inventory.consumeSelected(1);
     return true;
@@ -253,8 +284,11 @@ export class Interaction {
     const sx = Math.round(screen.x);
     const sy = Math.round(screen.y);
 
+    const highlightColor =
+      this.mode === "mine" ? MINE_HIGHLIGHT_COLOR : this.mode === "place" ? PLACE_HIGHLIGHT_COLOR : EMPTY_HIGHLIGHT_COLOR;
+
     ctx.lineWidth = 2;
-    ctx.strokeStyle = MINE_HIGHLIGHT_COLOR;
+    ctx.strokeStyle = highlightColor;
     ctx.strokeRect(sx + 1, sy + 1, size - 2, size - 2);
 
     if (this.mineTx === this.targetTx && this.mineTy === this.targetTy && this.mineFraction > 0) {

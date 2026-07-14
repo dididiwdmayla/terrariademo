@@ -21,8 +21,27 @@ import {
   INVENTORY_SLOTS,
 } from "../config";
 import { TILE_VARIANTS } from "../world/tiles";
-import type { Inventory } from "../player/inventory";
+import { TOOL_PROPS, type Inventory } from "../player/inventory";
 import type { Player } from "../player/player";
+
+// cache de ícones de ferramentas por src, carregados uma única vez (mesmo padrão do player.ts)
+interface IconEntry {
+  img: HTMLImageElement;
+  ready: boolean;
+}
+const toolIconCache = new Map<string, IconEntry>();
+function getToolIcon(src: string): IconEntry {
+  let entry = toolIconCache.get(src);
+  if (!entry) {
+    entry = { img: new Image(), ready: false };
+    entry.img.onload = () => {
+      entry!.ready = true;
+    };
+    entry.img.src = src;
+    toolIconCache.set(src, entry);
+  }
+  return entry;
+}
 
 function hotbarLayout(): { startX: number; y: number } {
   const totalW = INVENTORY_SLOTS * HOTBAR_SLOT_SIZE + (INVENTORY_SLOTS - 1) * HOTBAR_SLOT_GAP;
@@ -98,9 +117,14 @@ export class Hud {
 
       if (slot) {
         const pad = HOTBAR_ICON_PADDING;
-        ctx.fillStyle = TILE_VARIANTS[slot.tile][2];
-        ctx.fillRect(x + pad, y + pad, HOTBAR_SLOT_SIZE - pad * 2, HOTBAR_SLOT_SIZE - pad * 2);
-        this.drawShadowedText(ctx, String(slot.count), x + HOTBAR_SLOT_SIZE - 3, y + HOTBAR_SLOT_SIZE - 3, "right", "bottom");
+        if (slot.kind === "tile") {
+          ctx.fillStyle = TILE_VARIANTS[slot.tile][2];
+          ctx.fillRect(x + pad, y + pad, HOTBAR_SLOT_SIZE - pad * 2, HOTBAR_SLOT_SIZE - pad * 2);
+          this.drawShadowedText(ctx, String(slot.count), x + HOTBAR_SLOT_SIZE - 3, y + HOTBAR_SLOT_SIZE - 3, "right", "bottom");
+        } else {
+          const icon = getToolIcon(TOOL_PROPS[slot.tool].iconSrc);
+          if (icon.ready) ctx.drawImage(icon.img, x + pad, y + pad, HOTBAR_SLOT_SIZE - pad * 2, HOTBAR_SLOT_SIZE - pad * 2);
+        }
       }
 
       const label = String((i + 1) % 10);

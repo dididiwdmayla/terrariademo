@@ -1,15 +1,18 @@
 export class Input {
   private keysDown = new Set<string>();
+  private justPressedKeys = new Set<string>();
   mouseX = 0;
   mouseY = 0;
   mouseLeftDown = false;
   mouseRightDown = false;
   private wheelDelta = 0;
-  private rightPressLatch = false; // guarda cliques mais curtos que um frame
+  private leftPressLatch = false; // guarda cliques mais curtos que um frame
+  private rightPressLatch = false;
 
   constructor(canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
-      if (e.code.startsWith("Arrow")) e.preventDefault();
+      if (e.code.startsWith("Arrow") || e.code === "F1") e.preventDefault();
+      if (!this.keysDown.has(e.code)) this.justPressedKeys.add(e.code);
       this.keysDown.add(e.code);
     });
     window.addEventListener("keyup", (e) => this.keysDown.delete(e.code));
@@ -21,7 +24,10 @@ export class Input {
       this.mouseY = e.clientY - rect.top;
     });
     canvas.addEventListener("mousedown", (e) => {
-      if (e.button === 0) this.mouseLeftDown = true;
+      if (e.button === 0) {
+        this.mouseLeftDown = true;
+        this.leftPressLatch = true;
+      }
       if (e.button === 2) {
         this.mouseRightDown = true;
         this.rightPressLatch = true;
@@ -43,6 +49,21 @@ export class Input {
 
   isDown(code: string): boolean {
     return this.keysDown.has(code);
+  }
+
+  // true só no primeiro update após a tecla ser pressionada (ignora key-repeat do SO)
+  consumeKeyPress(code: string): boolean {
+    const pressed = this.justPressedKeys.has(code);
+    this.justPressedKeys.delete(code);
+    return pressed;
+  }
+
+  // consome o clique esquerdo registrado desde a última chamada; garante que
+  // um clique down+up mais rápido que um passo do update ainda seja visto
+  consumeLeftPress(): boolean {
+    const pressed = this.leftPressLatch;
+    this.leftPressLatch = false;
+    return pressed;
   }
 
   // consome o clique direito registrado desde a última chamada; garante que
