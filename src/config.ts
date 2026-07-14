@@ -190,6 +190,10 @@ export const PLAYER_JUMP_CUT_SPEED = 140; // px/s, teto da subida ao soltar o pu
 export const PLAYER_COYOTE_TIME = 0.1; // segundos de pulo permitido após sair do chão
 export const PLAYER_MAX_HP = 100;
 
+// --- Player: pulo automático (degraus de exatamente 1 tile) ---
+export const AUTO_JUMP_SPEED = 260; // px/s, impulso vertical mínimo p/ subir 1 tile sem perder o embalo horizontal
+export const AUTO_JUMP_PROBE_PX = 3; // px à frente da borda líder do player, p/ detectar o degrau antes da colisão de fato
+
 // --- Player: agachar (apenas visual + velocidade; hitbox não muda) ---
 export const PLAYER_CROUCH_SPEED_MULT = 0.5; // fração de PLAYER_MOVE_SPEED ao agachar no chão
 export const PLAYER_CROUCH_HEIGHT_MULT = 0.7; // fração da altura visual ao agachar
@@ -410,9 +414,15 @@ export const TOUCH_JOYSTICK_KNOB_COLOR = "rgba(255, 255, 255, 0.55)";
 // um pouco maior que o círculo desenhado)
 export const TOUCH_JOYSTICK_HIT_RADIUS_MULT = 1.3;
 
-// --- Joystick de movimento (canto inferior esquerdo, fixo) ---
-export const TOUCH_MOVE_JOYSTICK_RADIUS_FRAC = 0.12; // raio externo, fração de min(w,h)
-export const TOUCH_MOVE_JOYSTICK_MARGIN_FRAC = 0.04; // da borda esquerda/inferior até o círculo
+// --- Joystick de movimento (esquerda) ---
+// Modo "flutuante" (padrão): nasce onde o dedo toca a metade esquerda da tela
+// (como o de mira fazia antes de virar fixo), some ao soltar. Modo "fixo":
+// posição pré-definida abaixo, mas 30% maior e deslocada em relação à base.
+export const TOUCH_MOVE_JOYSTICK_RADIUS_FRAC = 0.12; // raio externo (flutuante, e base do fixo), fração de min(w,h)
+export const TOUCH_MOVE_JOYSTICK_MARGIN_FRAC = 0.04; // da borda esquerda/inferior até o círculo (posição-base do modo fixo)
+export const TOUCH_MOVE_JOYSTICK_FIXED_RADIUS_MULT = 1.3; // 30% maior que o raio-base no modo fixo
+export const TOUCH_MOVE_JOYSTICK_FIXED_OFFSET_X_FRAC = 0.15; // desloca à direita, fração da LARGURA da tela
+export const TOUCH_MOVE_JOYSTICK_FIXED_OFFSET_Y_FRAC = 0.15; // desloca pra cima, fração da ALTURA da tela
 export const TOUCH_MOVE_CROUCH_THRESHOLD_FRAC = 0.5; // fração do raio: puxar pra baixo além disso agacha (nível, não toggle)
 export const TOUCH_MOVE_FLICK_THRESHOLD_FRAC = 0.6; // fração do raio: acima disso conta como "levado pra cima" (flick)
 export const TOUCH_MOVE_DOUBLE_FLICK_WINDOW = 0.35; // segundos entre os dois flicks pra contar como duplo-flick = pulo
@@ -463,7 +473,7 @@ export const SAVE_AUTOSAVE_INTERVAL = 30; // segundos entre auto-saves
 export const SAVE_MENU_OVERLAY_COLOR = "rgba(0, 0, 0, 0.55)";
 export const SAVE_MENU_PANEL_BG = "rgba(30, 30, 34, 0.95)";
 export const SAVE_MENU_PANEL_BORDER = "rgba(255, 255, 255, 0.3)";
-export const SAVE_MENU_PANEL_WIDTH = 260;
+export const SAVE_MENU_PANEL_WIDTH = 300;
 export const SAVE_MENU_PANEL_PADDING = 20;
 export const SAVE_MENU_BUTTON_HEIGHT = 40;
 export const SAVE_MENU_BUTTON_GAP = 12;
@@ -472,6 +482,10 @@ export const SAVE_MENU_BUTTON_FONT = "13px monospace";
 export const SAVE_MENU_BUTTON_BG = "rgba(255, 255, 255, 0.12)";
 export const SAVE_MENU_BUTTON_BORDER = "rgba(255, 255, 255, 0.4)";
 export const SAVE_MENU_TEXT_COLOR = "#ffffff";
+// seção "Controles": cabeçalho de texto simples (sem caixa/borda) acima dos toggles
+export const SAVE_MENU_HEADER_HEIGHT = 22;
+export const SAVE_MENU_HEADER_FONT = "11px monospace";
+export const SAVE_MENU_HEADER_COLOR = "rgba(255, 255, 255, 0.6)";
 
 // --- Controles de toque: botão discreto do menu de save (canto superior direito) ---
 export const TOUCH_MENU_BUTTON_SIZE_FRAC = 0.08;

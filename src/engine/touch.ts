@@ -1,4 +1,5 @@
 import {
+  TILE_SIZE,
   TOUCH_AIM_JOYSTICK_MARGIN_FRAC,
   TOUCH_AIM_JOYSTICK_RADIUS_FRAC,
   TOUCH_BUTTON_BG_ACTIVE_COLOR,
@@ -26,6 +27,9 @@ import {
   TOUCH_MOVE_CROUCH_THRESHOLD_FRAC,
   TOUCH_MOVE_DOUBLE_FLICK_WINDOW,
   TOUCH_MOVE_FLICK_THRESHOLD_FRAC,
+  TOUCH_MOVE_JOYSTICK_FIXED_OFFSET_X_FRAC,
+  TOUCH_MOVE_JOYSTICK_FIXED_OFFSET_Y_FRAC,
+  TOUCH_MOVE_JOYSTICK_FIXED_RADIUS_MULT,
   TOUCH_MOVE_JOYSTICK_MARGIN_FRAC,
   TOUCH_MOVE_JOYSTICK_RADIUS_FRAC,
   TOUCH_MOVE_JUMP_PULSE,
@@ -33,6 +37,8 @@ import {
   TOUCH_TAP_MAX_HOLD,
 } from "../config";
 import { hotbarSlotIndexAt } from "../ui/hud";
+import type { Camera } from "./camera";
+import type { Settings } from "./settings";
 
 interface Circle {
   x: number;
@@ -55,8 +61,11 @@ type TouchRole =
   | { kind: "world" };
 
 // Controles de toque estilo Terraria mobile, réplica do layout de duas mãos:
-// - Joystick de movimento FIXO no canto inferior esquerdo: eixo horizontal anda,
+// - Joystick de movimento no canto inferior esquerdo: eixo horizontal anda,
 //   segurar pra baixo agacha (nível, não toggle), duplo-flick pra cima = pulo.
+//   Modo "flutuante" (padrão, em settings.leftJoystickMode): nasce onde o dedo
+//   toca a metade esquerda da tela, some ao soltar. Modo "fixo": posição
+//   pré-definida (maior e deslocada em relação à base "flutuante").
 // - Botão de pulo dedicado, grande, no lado direito (acima do joystick de mira) —
 //   pulo acessível pelas duas mãos.
 // - Joystick de mira FIXO no canto inferior direito (mineração/construção
@@ -89,6 +98,9 @@ export class TouchControls {
   private jumpFlickTimer = 0; // >0 enquanto o pulso sintético do duplo-flick estiver "pressionado"
 
   private moveTouchId: number | null = null;
+  private moveOriginX = 0; // origem do gesto: fixa (modo fixo) ou onde o dedo tocou (modo flutuante)
+  private moveOriginY = 0;
+  private moveRadius = 0;
   private moveCurX = 0;
   private moveCurY = 0;
   private moveFlickWasUp = false; // estado (subiu além do limiar) do frame anterior, pra detectar borda
@@ -182,12 +194,18 @@ export class TouchControls {
     return Math.min(window.innerWidth, window.innerHeight);
   }
 
-  // origem fixa do joystick de movimento (canto inferior esquerdo)
-  private moveJoystickCircle(): Circle {
+  // posição pré-definida do joystick de movimento no modo "fixo": 30% maior
+  // que a base (usada também como raio do modo "flutuante") e deslocada em
+  // relação a ela — à direita (fração da largura) e pra cima (fração da altura)
+  private moveJoystickCircleFixed(): Circle {
     const unit = this.viewportUnit();
-    const radius = unit * TOUCH_MOVE_JOYSTICK_RADIUS_FRAC;
+    const baseRadius = unit * TOUCH_MOVE_JOYSTICK_RADIUS_FRAC;
     const margin = unit * TOUCH_MOVE_JOYSTICK_MARGIN_FRAC;
-    return { x: margin + radius, y: window.innerHeight - margin - radius, radius };
+    const baseX = margin + baseRadius;
+    const baseY = window.innerHeight - margin - baseRadius;
+    const offsetX = window.innerWidth * TOUCH_MOVE_JOYSTICK_FIXED_OFFSET_X_FRAC;
+    const offsetY = window.innerHeight * TOUCH_MOVE_JOYSTICK_FIXED_OFFSET_Y_FRAC;
+    return { x: baseX + offsetX, y: baseY - offsetY, radius: baseRadius * TOUCH_MOVE_JOYSTICK_FIXED_RADIUS_MULT };
   }
 
   // origem fixa do joystick de mira (canto inferior direito)
@@ -233,7 +251,10 @@ export class TouchControls {
     return dx * dx + dy * dy <= r * r;
   }
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private readonly settings: Settings,
+  ) {
     this.enabled = "ontouchstart" in window || navigator.maxTouchPoints > 0;
     if (!this.enabled) return;
 
@@ -341,16 +362,35 @@ export class TouchControls {
         continue;
       }
 
-      // toque começa DENTRO do círculo de captura de um joystick fixo -> pertence a ele até soltar;
-      // fora disso (mesmo que "do lado direito da tela") é sempre interação com o mundo
-      const moveCircle = this.moveJoystickCircle();
-      if (this.moveTouchId === null && this.hitsCircle(x, y, moveCircle, TOUCH_JOYSTICK_HIT_RADIUS_MULT)) {
-        this.touchRoles.set(t.identifier, { kind: "move" });
-        this.moveTouchId = t.identifier;
-        this.moveCurX = x;
-        this.moveCurY = y;
-        this.updateMoveVector();
-        continue;
+      // joystick de movimento: no modo fixo, toque começa DENTRO do círculo de
+      // captura pré-definido; no modo flutuante (padrão), qualquer toque na
+      // metade esquerda da tela nasce o joystick ali mesmo (como o de mira
+      // fazia antes de virar fixo). Fora disso é sempre interação com o mundo.
+      if (this.moveTouchId === null) {
+        if (this.settings.leftJoystickMode === "fixed") {
+          const moveCircle = this.moveJoystickCircleFixed();
+          if (this.hitsCircle(x, y, moveCircle, TOUCH_JOYSTICK_HIT_RADIUS_MULT)) {
+            this.touchRoles.set(t.identifier, { kind: "move" });
+            this.moveTouchId = t.identifier;
+            this.moveOriginX = moveCircle.x;
+            this.moveOriginY = moveCircle.y;
+            this.moveRadius = moveCircle.radius;
+            this.moveCurX = x;
+            this.moveCurY = y;
+            this.updateMoveVector();
+            continue;
+          }
+        } else if (x < window.innerWidth / 2) {
+          this.touchRoles.set(t.identifier, { kind: "move" });
+          this.moveTouchId = t.identifier;
+          this.moveOriginX = x;
+          this.moveOriginY = y;
+          this.moveRadius = this.viewportUnit() * TOUCH_MOVE_JOYSTICK_RADIUS_FRAC;
+          this.moveCurX = x;
+          this.moveCurY = y;
+          this.updateMoveVector();
+          continue;
+        }
       }
 
       const aimCircle = this.aimJoystickCircle();
@@ -423,16 +463,15 @@ export class TouchControls {
   // limiar agacha (nível); cruzar o limiar de cima duas vezes dentro da janela
   // de duplo-flick dispara um pulso sintético de pulo.
   private updateMoveVector(): void {
-    const circle = this.moveJoystickCircle();
-    const dx = this.moveCurX - circle.x;
-    const dy = this.moveCurY - circle.y;
-    const deadzone = circle.radius * TOUCH_JOYSTICK_DEADZONE_FRAC;
+    const dx = this.moveCurX - this.moveOriginX;
+    const dy = this.moveCurY - this.moveOriginY;
+    const deadzone = this.moveRadius * TOUCH_JOYSTICK_DEADZONE_FRAC;
 
     this.left = dx < -deadzone;
     this.right = dx > deadzone;
-    this.crouch = dy > circle.radius * TOUCH_MOVE_CROUCH_THRESHOLD_FRAC;
+    this.crouch = dy > this.moveRadius * TOUCH_MOVE_CROUCH_THRESHOLD_FRAC;
 
-    const isUp = dy < -circle.radius * TOUCH_MOVE_FLICK_THRESHOLD_FRAC;
+    const isUp = dy < -this.moveRadius * TOUCH_MOVE_FLICK_THRESHOLD_FRAC;
     if (isUp && !this.moveFlickWasUp) {
       if (this.moveFlickPending) {
         this.moveFlickPending = false;
@@ -460,14 +499,27 @@ export class TouchControls {
     this.aimDirY = dy / dist;
   }
 
-  render(ctx: CanvasRenderingContext2D): void {
+  render(ctx: CanvasRenderingContext2D, camera: Camera): void {
     if (!this.enabled) return;
-    this.renderJoystick(ctx, this.moveJoystickCircle(), this.moveTouchId !== null, this.moveCurX, this.moveCurY);
+    this.renderMoveJoystick(ctx);
     this.renderJoystick(ctx, this.aimJoystickCircle(), this.aimTouchId !== null, this.aimCurX, this.aimCurY);
     this.renderJumpButton(ctx);
     this.renderMenuButton(ctx);
     this.renderFullscreenButton(ctx);
-    this.renderMagnifier(ctx);
+    this.renderMagnifier(ctx, camera);
+  }
+
+  // modo fixo: base sempre visível na posição pré-definida (ou na origem do
+  // toque atual, idêntica enquanto em uso). Modo flutuante: só aparece
+  // enquanto o dedo estiver na tela (nasce onde tocou, some ao soltar).
+  private renderMoveJoystick(ctx: CanvasRenderingContext2D): void {
+    const active = this.moveTouchId !== null;
+    if (this.settings.leftJoystickMode === "fixed") {
+      const circle = active ? { x: this.moveOriginX, y: this.moveOriginY, radius: this.moveRadius } : this.moveJoystickCircleFixed();
+      this.renderJoystick(ctx, circle, active, this.moveCurX, this.moveCurY);
+    } else if (active) {
+      this.renderJoystick(ctx, { x: this.moveOriginX, y: this.moveOriginY, radius: this.moveRadius }, true, this.moveCurX, this.moveCurY);
+    }
   }
 
   // desenha a base (sempre visível, fixa) e o manípulo (no centro se solto, ou
@@ -543,33 +595,42 @@ export class TouchControls {
     ctx.fillText("⛶", x + size / 2, y + size / 2 + 1);
   }
 
-  // Lupa de precisão: amostra (via drawImage do próprio canvas, já desenhado
-  // neste frame) um círculo da área sob o dedo e desenha essa amostra ampliada
-  // num círculo deslocado acima do dedo, com crosshair marcando o tile alvo.
-  private renderMagnifier(ctx: CanvasRenderingContext2D): void {
+  // Lupa de precisão: a JANELA (círculo visual) fica deslocada acima do dedo,
+  // acompanhando-o 1:1, pra não ser coberta pela mão. O CONTEÚDO amostrado (via
+  // drawImage do próprio canvas, já desenhado neste frame) e o crosshair são
+  // sempre centrados no TILE do mundo exatamente sob o dedo — recalculado a
+  // cada frame a partir da câmera atual, então continua exato mesmo com a
+  // câmera se movendo (o mundo rolando sob um dedo parado atualiza o alvo).
+  private renderMagnifier(ctx: CanvasRenderingContext2D, camera: Camera): void {
     if (!this.worldMagnifierActive) return;
+
+    const worldPos = camera.screenToWorld(this.worldCurX, this.worldCurY);
+    const tx = Math.floor(worldPos.x / TILE_SIZE);
+    const ty = Math.floor(worldPos.y / TILE_SIZE);
+    const targetScreen = camera.worldToScreen((tx + 0.5) * TILE_SIZE, (ty + 0.5) * TILE_SIZE);
 
     const unit = this.viewportUnit();
     const lensRadius = unit * TOUCH_MAGNIFIER_RADIUS_FRAC;
     const srcRadius = lensRadius / TOUCH_MAGNIFIER_ZOOM;
     const offsetY = unit * TOUCH_MAGNIFIER_OFFSET_Y_FRAC;
-    const centerX = this.worldCurX;
-    const centerY = this.worldCurY - offsetY;
+    // janela: segue o dedo 1:1, deslocada acima dele
+    const lensX = this.worldCurX;
+    const lensY = this.worldCurY - offsetY;
 
     ctx.save();
     ctx.beginPath();
-    ctx.arc(centerX, centerY, lensRadius, 0, Math.PI * 2);
+    ctx.arc(lensX, lensY, lensRadius, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
     ctx.imageSmoothingEnabled = true; // prévia ampliada, não precisa ser pixel-perfect
     ctx.drawImage(
       ctx.canvas,
-      this.worldCurX - srcRadius,
-      this.worldCurY - srcRadius,
+      targetScreen.x - srcRadius,
+      targetScreen.y - srcRadius,
       srcRadius * 2,
       srcRadius * 2,
-      centerX - lensRadius,
-      centerY - lensRadius,
+      lensX - lensRadius,
+      lensY - lensRadius,
       lensRadius * 2,
       lensRadius * 2,
     );
@@ -577,19 +638,21 @@ export class TouchControls {
     ctx.restore();
 
     ctx.beginPath();
-    ctx.arc(centerX, centerY, lensRadius, 0, Math.PI * 2);
+    ctx.arc(lensX, lensY, lensRadius, 0, Math.PI * 2);
     ctx.strokeStyle = TOUCH_MAGNIFIER_BORDER_COLOR;
     ctx.lineWidth = 3;
     ctx.stroke();
 
+    // crosshair no centro do conteúdo (que já é o centro do tile-alvo, pois a
+    // amostra foi centrada em targetScreen)
     const crossSize = lensRadius * 0.25;
     ctx.strokeStyle = TOUCH_MAGNIFIER_CROSSHAIR_COLOR;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(centerX - crossSize, centerY);
-    ctx.lineTo(centerX + crossSize, centerY);
-    ctx.moveTo(centerX, centerY - crossSize);
-    ctx.lineTo(centerX, centerY + crossSize);
+    ctx.moveTo(lensX - crossSize, lensY);
+    ctx.lineTo(lensX + crossSize, lensY);
+    ctx.moveTo(lensX, lensY - crossSize);
+    ctx.lineTo(lensX, lensY + crossSize);
     ctx.stroke();
   }
 }
