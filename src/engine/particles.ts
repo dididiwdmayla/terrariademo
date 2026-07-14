@@ -1,6 +1,4 @@
 import {
-  DUST_PARTICLE_COLOR,
-  DUST_PARTICLE_COUNT,
   DUST_PARTICLE_LIFE,
   DUST_PARTICLE_SIZE,
   DUST_PARTICLE_SPEED,
@@ -54,20 +52,30 @@ export class Particles {
     }
   }
 
-  spawnLandingDust(worldX: number, worldY: number): void {
-    for (let i = 0; i < DUST_PARTICLE_COUNT; i++) {
-      const angle = Math.PI + Math.random() * Math.PI; // leque p/ cima, espalhando p/ os lados
-      const speed = Math.random() * DUST_PARTICLE_SPEED;
+  // Poeira genérica (leque p/ cima, espalhando p/ os lados): usada tanto pro puff de passo
+  // quanto pra rajada maior de aterrissagem/freada/virada, variando cor/quantidade/velocidade/vida.
+  spawnDust(
+    worldX: number,
+    worldY: number,
+    color: string,
+    count: number,
+    speed: number = DUST_PARTICLE_SPEED,
+    life: number = DUST_PARTICLE_LIFE,
+    size: number = DUST_PARTICLE_SIZE,
+  ): void {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.PI + Math.random() * Math.PI;
+      const s = Math.random() * speed;
       this.list.push({
         x: worldX,
         y: worldY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed * 0.5,
+        vx: Math.cos(angle) * s,
+        vy: Math.sin(angle) * s * 0.5,
         gravity: PARTICLE_GRAVITY * 0.3,
-        life: DUST_PARTICLE_LIFE,
-        maxLife: DUST_PARTICLE_LIFE,
-        size: DUST_PARTICLE_SIZE,
-        color: DUST_PARTICLE_COLOR,
+        life,
+        maxLife: life,
+        size,
+        color,
       });
     }
   }

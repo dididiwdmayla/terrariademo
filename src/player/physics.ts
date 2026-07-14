@@ -7,11 +7,11 @@ import {
   PLAYER_COYOTE_TIME,
   PLAYER_CROUCH_SPEED_MULT,
   PLAYER_GROUND_ACCEL,
-  PLAYER_GROUND_FRICTION,
   PLAYER_JUMP_CUT_SPEED,
   PLAYER_JUMP_SPEED,
   PLAYER_MOVE_SPEED,
   PLAYER_SPRINT_SPEED_MULT,
+  PLAYER_STOP_TIME,
   TILE_SIZE,
 } from "../config";
 import { TILE_PROPS } from "../world/tiles";
@@ -55,8 +55,18 @@ export function stepPlayer(player: Player, world: World, controls: Controls, dt:
     player.vx += dir * accel * dt;
     player.vx = Math.max(-maxSpeed, Math.min(maxSpeed, player.vx));
     player.facing = dir;
+    player.stopTimer = 0;
+  } else if (player.grounded) {
+    // desaceleração em curva (não linear) até parar em exatamente PLAYER_STOP_TIME: a maior
+    // parte da perda de velocidade acontece logo nos primeiros 50% do tempo, evitando o
+    // "escorregão" de uma fricção linear constante
+    if (player.stopTimer <= 0) player.stopVx = player.vx;
+    player.stopTimer = Math.min(PLAYER_STOP_TIME, player.stopTimer + dt);
+    const remaining = 1 - player.stopTimer / PLAYER_STOP_TIME;
+    player.vx = player.stopVx * remaining * remaining;
   } else {
-    const friction = (player.grounded ? PLAYER_GROUND_FRICTION : PLAYER_AIR_FRICTION) * dt;
+    player.stopTimer = 0;
+    const friction = PLAYER_AIR_FRICTION * dt;
     if (Math.abs(player.vx) <= friction) player.vx = 0;
     else player.vx -= Math.sign(player.vx) * friction;
   }
