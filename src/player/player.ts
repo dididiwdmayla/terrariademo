@@ -158,6 +158,7 @@ export class Player {
   grounded = false;
   coyoteTimer = 0;
   jumpHeld = false;
+  autoJumping = false; // true enquanto no ar por causa do pulo automático (ver physics.ts): isento do corte de altura variável, que é só pro pulo manual
   stopTimer = 0; // tempo decorrido desacelerando no chão (ver physics.ts)
   stopVx = 0; // vx capturada no instante em que a desaceleração começou
   footstepDist = 0; // px acumulados no chão desde o último puff de passo

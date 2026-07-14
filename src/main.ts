@@ -2,6 +2,7 @@ import { Renderer } from "./engine/renderer";
 import { Camera } from "./engine/camera";
 import { Input } from "./engine/input";
 import { TouchControls } from "./engine/touch";
+import { Settings } from "./engine/settings";
 import { Particles } from "./engine/particles";
 import { World } from "./world/world";
 import { generateWorld } from "./world/gen";
@@ -46,9 +47,10 @@ const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 const camera = new Camera();
 const input = new Input(canvas);
-const touchControls = new TouchControls(canvas);
+const settings = new Settings();
+const touchControls = new TouchControls(canvas, settings);
 const hud = new Hud();
-const saveMenu = new SaveMenu();
+const saveMenu = new SaveMenu(settings);
 const inventory = new Inventory();
 const interaction = new Interaction();
 const dayNight = new DayNight();
@@ -97,6 +99,7 @@ if (savedGame) {
   player.x = savedGame.playerX;
   player.y = savedGame.playerY;
   dayNight.cycleT = savedGame.dayNightT;
+  settings.applyFromSaved(savedGame.settings);
 } else {
   newWorldFromSeed(WORLD_SEED);
   resetInventoryDefaults();
@@ -110,11 +113,15 @@ function recenterCamera(): void {
 recenterCamera();
 
 function saveGame(): void {
-  saveToStorage(buildSaveData(world, originalTiles, currentSeed, inventory, player, dayNight));
+  saveToStorage(buildSaveData(world, originalTiles, currentSeed, inventory, player, dayNight, settings));
 }
 window.addEventListener("beforeunload", saveGame);
 
 function applyMenuAction(action: SaveMenuAction): void {
+  if (action === "toggle-joystick-mode" || action === "toggle-auto-jump") {
+    saveGame(); // persiste a mudança de preferência imediatamente, junto do save
+    return;
+  }
   if (action === "erase-save") {
     clearStorage();
     return;
@@ -166,7 +173,7 @@ function update(dt: number): void {
   const vyBeforeStep = player.vy;
   const vxBeforeStep = player.vx;
   const xBeforeStep = player.x;
-  stepPlayer(player, world, controls, dt);
+  stepPlayer(player, world, controls, dt, settings.autoJump);
 
   if (!wasGrounded && player.grounded && vyBeforeStep > LANDING_FALL_SPEED_THRESHOLD) {
     particles.spawnDust(
@@ -284,7 +291,7 @@ function render(): void {
   particles.render(renderer.ctx, camera, window.innerWidth, window.innerHeight);
   interaction.render(renderer.ctx, camera);
   hud.render(renderer.ctx, fps, inventory, player);
-  touchControls.render(renderer.ctx);
+  touchControls.render(renderer.ctx, camera);
   saveMenu.render(renderer.ctx);
 }
 
@@ -297,6 +304,8 @@ function render(): void {
   inventory,
   touchControls,
   interaction,
+  settings,
+  saveMenu,
   saveGame,
   clearSave: clearStorage,
   getSeed: () => currentSeed,

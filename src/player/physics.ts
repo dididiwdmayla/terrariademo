@@ -1,4 +1,6 @@
 import {
+  AUTO_JUMP_PROBE_PX,
+  AUTO_JUMP_SPEED,
   GRAVITY,
   MAX_FALL_SPEED,
   PHYSICS_EPS,
@@ -39,9 +41,27 @@ function rectHitsSolid(world: World, x: number, y: number, w: number, h: number)
   return false;
 }
 
+// Detecta um degrau de EXATAMENTE 1 tile bem à frente do player (grudado no
+// chão, na mesma linha dos pés) com espaço livre acima pra ele passar depois
+// de subir. Degraus de 2+ tiles nunca disparam: exige o tile na linha da
+// cabeça atual livre (senão a "parede" teria 2+ tiles de altura) e mais um
+// tile de folga acima disso (senão o player bateria a cabeça ao subir).
+function detectsOneTileStep(player: Player, world: World, dir: 1 | -1): boolean {
+  const probeX = dir > 0 ? player.x + player.width + AUTO_JUMP_PROBE_PX : player.x - AUTO_JUMP_PROBE_PX;
+  const tx = Math.floor(probeX / TILE_SIZE);
+  const headRow = Math.floor(player.y / TILE_SIZE);
+  const footRow = headRow + 1; // PLAYER_HEIGHT é exatamente 2 tiles; grounded => player.y alinhado à grade
+
+  return (
+    TILE_PROPS[world.getTile(tx, footRow)].solido &&
+    !TILE_PROPS[world.getTile(tx, headRow)].solido &&
+    !TILE_PROPS[world.getTile(tx, headRow - 1)].solido
+  );
+}
+
 // Física de plataforma com fixed timestep: aceleração/fricção, gravidade,
 // pulo variável com coyote time, e colisão AABB resolvida por eixo (X depois Y).
-export function stepPlayer(player: Player, world: World, controls: Controls, dt: number): void {
+export function stepPlayer(player: Player, world: World, controls: Controls, dt: number, autoJumpEnabled: boolean): void {
   // --- horizontal: aceleração com input, fricção sem ---
   const dir: 1 | 0 | -1 = controls.right === controls.left ? 0 : controls.right ? 1 : -1;
   const maxSpeed =
@@ -71,6 +91,14 @@ export function stepPlayer(player: Player, world: World, controls: Controls, dt:
     else player.vx -= Math.sign(player.vx) * friction;
   }
 
+  // --- pulo automático: sobe sozinho degraus de exatamente 1 tile ao andar no chão ---
+  if (autoJumpEnabled && player.grounded && !controls.crouch && dir !== 0 && detectsOneTileStep(player, world, dir)) {
+    player.vy = -AUTO_JUMP_SPEED;
+    player.grounded = false;
+    player.autoJumping = true;
+  }
+  if (player.grounded) player.autoJumping = false; // aterrissou: encerra a isenção do corte de altura
+
   // --- pulo: coyote time + altura variável ---
   player.coyoteTimer = player.grounded ? PLAYER_COYOTE_TIME : Math.max(0, player.coyoteTimer - dt);
   const jumpPressed = controls.jump && !player.jumpHeld;
@@ -78,9 +106,11 @@ export function stepPlayer(player: Player, world: World, controls: Controls, dt:
     player.vy = -PLAYER_JUMP_SPEED;
     player.coyoteTimer = 0;
     player.grounded = false;
+    player.autoJumping = false; // pulo manual sobrepõe o automático: altura variável normal se aplica
   }
-  // soltar o botão durante a subida corta o pulo
-  if (!controls.jump && player.vy < -PLAYER_JUMP_CUT_SPEED) player.vy = -PLAYER_JUMP_CUT_SPEED;
+  // soltar o botão durante a subida corta o pulo (não se aplica ao pulo automático,
+  // que não é "segurado" e por isso seria cortado no primeiro frame no ar)
+  if (!player.autoJumping && !controls.jump && player.vy < -PLAYER_JUMP_CUT_SPEED) player.vy = -PLAYER_JUMP_CUT_SPEED;
   player.jumpHeld = controls.jump;
 
   // --- gravidade com velocidade terminal ---

@@ -4,6 +4,7 @@ import type { World } from "./world";
 import { type Inventory, type SavedSlot } from "../player/inventory";
 import type { Player } from "../player/player";
 import type { DayNight } from "./daynight";
+import type { Settings } from "../engine/settings";
 
 export interface SaveData {
   version: number;
@@ -14,6 +15,9 @@ export interface SaveData {
   playerX: number;
   playerY: number;
   dayNightT: number;
+  // preferências (joystick esquerdo, pulo automático); opcional pra não quebrar
+  // saves de antes desse recurso — validado e aplicado por Settings.applyFromSaved
+  settings?: unknown;
 }
 
 // Monta o save a partir do estado atual: só os tiles diferentes do mundo
@@ -25,6 +29,7 @@ export function buildSaveData(
   inventory: Inventory,
   player: Player,
   dayNight: DayNight,
+  settings: Settings,
 ): SaveData {
   const tiles: number[] = [];
   const current = world.tiles;
@@ -46,6 +51,7 @@ export function buildSaveData(
     playerX: player.x,
     playerY: player.y,
     dayNightT: dayNight.cycleT,
+    settings: { leftJoystickMode: settings.leftJoystickMode, autoJump: settings.autoJump },
   };
 }
 
