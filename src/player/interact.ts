@@ -54,9 +54,16 @@ export class Interaction {
     inventory: Inventory,
     particles: Particles,
     touchAimDir: TouchAimDir | null = null,
+    touchPoint: { x: number; y: number; active: boolean } | null = null,
   ): void {
     this.placeCooldown = Math.max(0, this.placeCooldown - dt);
     this.mode = this.computeMode(inventory);
+
+    // tap exato / lupa de precisão (toque) tem prioridade sobre o joystick de mira
+    if (touchPoint) {
+      this.updateAtScreenPoint(dt, touchPoint.x, touchPoint.y, touchPoint.active, camera, world, player, inventory, particles);
+      return;
+    }
 
     if (touchAimDir) {
       this.updateTouchAim(dt, touchAimDir, world, player, inventory, particles);
@@ -96,6 +103,56 @@ export class Interaction {
     if (!slot) return "none";
     if (slot.kind === "tool") return TOOL_PROPS[slot.tool].minesTiles ? "mine" : "none";
     return "place";
+  }
+
+  // ponto exato de tela (tap ou crosshair da lupa de precisão): mesma checagem de
+  // alcance do mouse, mas mira o tile diretamente sob o ponto em vez de raycast por
+  // direção. Reaproveita tryMine/tryPlace, então tap único (um frame de ponto) só
+  // contribui uma fração de progresso de mineração — precisa segurar pra quebrar,
+  // igual ao mouse — e a lupa (ponto contínuo por vários frames) minera/constrói
+  // de verdade enquanto o dedo permanecer.
+  private updateAtScreenPoint(
+    dt: number,
+    screenX: number,
+    screenY: number,
+    active: boolean,
+    camera: Camera,
+    world: World,
+    player: Player,
+    inventory: Inventory,
+    particles: Particles,
+  ): void {
+    const worldPos = camera.screenToWorld(screenX, screenY);
+    const tx = Math.floor(worldPos.x / TILE_SIZE);
+    const ty = Math.floor(worldPos.y / TILE_SIZE);
+
+    const playerCenterX = player.x + player.width / 2;
+    const playerCenterY = player.y + player.height / 2;
+    const tileCenterX = tx * TILE_SIZE + TILE_SIZE / 2;
+    const tileCenterY = ty * TILE_SIZE + TILE_SIZE / 2;
+    const dx = tileCenterX - playerCenterX;
+    const dy = tileCenterY - playerCenterY;
+    const rangePx = MINE_RANGE_TILES * TILE_SIZE;
+    const inRange = dx * dx + dy * dy <= rangePx * rangePx;
+
+    // o alvo (crosshair/highlight) é sempre atualizado, mesmo antes da ação poder
+    // disparar (evita cair de volta pras coordenadas do mouse durante a espera)
+    this.targetTx = tx;
+    this.targetTy = ty;
+    this.targetInRange = inRange;
+
+    if (!inRange || !active) {
+      this.resetMining();
+      return;
+    }
+
+    if (this.mode === "mine") {
+      this.tryMine(dt, world, tx, ty, inventory, particles);
+    } else if (this.mode === "place") {
+      if (this.placeCooldown <= 0 && this.tryPlace(tx, ty, world, player, inventory)) this.placeCooldown = PLACE_COOLDOWN;
+    } else {
+      this.resetMining();
+    }
   }
 
   // enquanto o joystick de mira estiver ativo, minera continuamente o tile minerável mais próximo

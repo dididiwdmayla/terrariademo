@@ -1,0 +1,17 @@
+{
+  "name": "Terra",
+  "short_name": "Terra",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0c1226",
+  "theme_color": "#0c1226",
+  "icons": [
+    {
+      "src": "/pickaxe.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    }
+  ]
+}

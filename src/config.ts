@@ -382,13 +382,15 @@ export const MINE_CRACK_COLOR = "rgba(20, 20, 20, 0.75)";
 export const PLACE_COOLDOWN = 0.15; // segundos entre colocações com botão segurado
 
 // --- Controles de toque (mobile, estilo Terraria) ---
-// Todos os tamanhos/posições são frações de min(innerWidth, innerHeight), pra escalar com a tela.
-export const TOUCH_BUTTON_SIZE_FRAC = 0.12; // botões de movimento (esquerda)
-export const TOUCH_BUTTON_GAP_FRAC = 0.025;
-export const TOUCH_BUTTON_MARGIN_FRAC = 0.035;
-export const TOUCH_BUTTON_FONT_FRAC = 0.05;
-export const TOUCH_BUTTON_BG_COLOR = "rgba(255, 255, 255, 0.16)";
-export const TOUCH_BUTTON_BG_ACTIVE_COLOR = "rgba(255, 255, 255, 0.38)";
+// Botões do D-pad (cruz): tamanho é fração da ALTURA da tela (não do menor lado),
+// garantindo alvo de toque >= ~15% da altura mesmo em paisagem. Posições/gaps
+// também em fração da altura, pra manter a proporção da cruz.
+export const TOUCH_DPAD_BUTTON_SIZE_FRAC = 0.16; // ~3x o tamanho antigo (12% do menor lado)
+export const TOUCH_DPAD_GAP_FRAC = 0.012;
+export const TOUCH_DPAD_MARGIN_FRAC = 0.02; // margem entre a cruz e a borda esquerda da tela
+export const TOUCH_BUTTON_FONT_FRAC = 0.065; // fração de min(innerWidth, innerHeight)
+export const TOUCH_BUTTON_BG_COLOR = "rgba(255, 255, 255, 0.25)"; // bem transparente em repouso
+export const TOUCH_BUTTON_BG_ACTIVE_COLOR = "rgba(255, 255, 255, 0.5)"; // mais opaco quando pressionado
 export const TOUCH_BUTTON_BORDER_COLOR = "rgba(255, 255, 255, 0.45)";
 export const TOUCH_BUTTON_ICON_COLOR = "rgba(255, 255, 255, 0.92)";
 
@@ -398,7 +400,20 @@ export const TOUCH_JOYSTICK_DEADZONE_FRAC = 0.15; // fração do raio externo an
 export const TOUCH_JOYSTICK_BG_COLOR = "rgba(255, 255, 255, 0.14)";
 export const TOUCH_JOYSTICK_BORDER_COLOR = "rgba(255, 255, 255, 0.4)";
 export const TOUCH_JOYSTICK_KNOB_COLOR = "rgba(255, 255, 255, 0.55)";
-export const TOUCH_RIGHT_ZONE_START_FRAC = 0.5; // fração da largura da tela onde nasce o joystick de mira
+export const TOUCH_RIGHT_ZONE_START_FRAC = 0.5; // fração da largura da tela onde nasce o joystick de mira; o resto (esquerda) é a zona de tap/lupa de precisão
+
+// --- Controles de toque: modo de precisão (tap exato / lupa), estilo Terraria mobile ---
+export const TOUCH_TAP_MAX_HOLD = 0.18; // segundos: toque solto antes disso é um tap instantâneo no tile exato
+export const TOUCH_PRECISION_ACTIVATION_DELAY = 0.25; // segundos com a lupa aberta antes da ação começar a disparar
+export const TOUCH_MAGNIFIER_RADIUS_FRAC = 0.09; // fração de min(innerWidth, innerHeight)
+export const TOUCH_MAGNIFIER_OFFSET_Y_FRAC = 0.2; // deslocamento da lupa acima do dedo (~80px em telas típicas)
+export const TOUCH_MAGNIFIER_ZOOM = 1.5;
+export const TOUCH_MAGNIFIER_BORDER_COLOR = "rgba(255, 255, 255, 0.9)";
+export const TOUCH_MAGNIFIER_CROSSHAIR_COLOR = "rgba(255, 70, 70, 0.9)";
+
+// --- Controles de toque: fullscreen (canto superior direito, ao lado do menu) ---
+export const TOUCH_FULLSCREEN_BUTTON_SIZE_FRAC = 0.08;
+export const TOUCH_FULLSCREEN_BUTTON_GAP_FRAC = 0.015; // espaço entre o botão de fullscreen e o de menu
 
 // --- Inventário / Hotbar ---
 export const INVENTORY_SLOTS = 9;

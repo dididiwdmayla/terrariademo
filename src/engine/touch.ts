@@ -3,19 +3,28 @@ import {
   TOUCH_BUTTON_BG_COLOR,
   TOUCH_BUTTON_BORDER_COLOR,
   TOUCH_BUTTON_FONT_FRAC,
-  TOUCH_BUTTON_GAP_FRAC,
   TOUCH_BUTTON_ICON_COLOR,
-  TOUCH_BUTTON_MARGIN_FRAC,
-  TOUCH_BUTTON_SIZE_FRAC,
+  TOUCH_DPAD_BUTTON_SIZE_FRAC,
+  TOUCH_DPAD_GAP_FRAC,
+  TOUCH_DPAD_MARGIN_FRAC,
+  TOUCH_FULLSCREEN_BUTTON_GAP_FRAC,
+  TOUCH_FULLSCREEN_BUTTON_SIZE_FRAC,
   TOUCH_JOYSTICK_BG_COLOR,
   TOUCH_JOYSTICK_BORDER_COLOR,
   TOUCH_JOYSTICK_DEADZONE_FRAC,
   TOUCH_JOYSTICK_KNOB_COLOR,
   TOUCH_JOYSTICK_KNOB_FRAC,
   TOUCH_JOYSTICK_RADIUS_FRAC,
+  TOUCH_MAGNIFIER_BORDER_COLOR,
+  TOUCH_MAGNIFIER_CROSSHAIR_COLOR,
+  TOUCH_MAGNIFIER_OFFSET_Y_FRAC,
+  TOUCH_MAGNIFIER_RADIUS_FRAC,
+  TOUCH_MAGNIFIER_ZOOM,
   TOUCH_MENU_BUTTON_MARGIN_FRAC,
   TOUCH_MENU_BUTTON_SIZE_FRAC,
+  TOUCH_PRECISION_ACTIVATION_DELAY,
   TOUCH_RIGHT_ZONE_START_FRAC,
+  TOUCH_TAP_MAX_HOLD,
 } from "../config";
 import { hotbarSlotIndexAt, hotbarTopY } from "../ui/hud";
 
@@ -28,12 +37,23 @@ interface ButtonRect {
   size: number;
 }
 
-type TouchRole = { kind: "button"; button: ButtonKind } | { kind: "hotbar" } | { kind: "aim" } | { kind: "menu" };
+type TouchRole =
+  | { kind: "button"; button: ButtonKind }
+  | { kind: "hotbar" }
+  | { kind: "aim" }
+  | { kind: "menu" }
+  | { kind: "world" };
 
-// Controles de toque estilo Terraria mobile: botões de movimento/pulo/agachar à esquerda
-// (segurar = ativo; agachar é toggle) e joystick flutuante de mira à direita (mineração/
-// construção contínuas na direção apontada). Só se ativa em dispositivos com tela de toque;
-// em desktop (sem toque) a classe fica inerte e nada muda no jogo.
+// Controles de toque estilo Terraria mobile:
+// - Cluster esquerdo em cruz (D-pad): ◀/▶ nas pontas horizontais, ▲ (pulo) acima
+//   e ▼ (agachar, toggle) abaixo, entre os dois — segurar = ativo.
+// - Zona direita: joystick flutuante de mira (mineração/construção contínuas na
+//   direção apontada).
+// - Zona esquerda/central fora do D-pad: modo de precisão — tap rápido age no
+//   tile exato do toque; segurar invoca uma lupa que amplia a área sob o dedo
+//   (deslocada acima dele) com crosshair, e a ação passa a disparar continuamente
+//   no tile do crosshair após um pequeno atraso; arrastar move o alvo.
+// Só se ativa em dispositivos com tela de toque; em desktop a classe fica inerte.
 export class TouchControls {
   readonly enabled: boolean;
 
@@ -58,10 +78,21 @@ export class TouchControls {
 
   // botão discreto (canto superior direito) que abre/fecha o menu de save;
   // enquanto o menu está aberto, todo outro toque é tratado como clique nele
-  // em vez de gameplay (movimento/hotbar/mira ficam inertes)
+  // em vez de gameplay (movimento/hotbar/mira/precisão ficam inertes)
   private menuOpen = false;
   private menuButtonPending = false;
   private menuTapPos: { x: number; y: number } | null = null;
+
+  // toque de precisão (tap exato / lupa) na zona esquerda/central, fora do D-pad
+  private worldTouchId: number | null = null;
+  private worldCurX = 0;
+  private worldCurY = 0;
+  private worldHeldTime = 0;
+  private worldMagnifierActive = false;
+  private worldActivationTimer = 0;
+  private worldTapPending = false;
+  private worldTapX = 0;
+  private worldTapY = 0;
 
   setMenuOpen(open: boolean): void {
     this.menuOpen = open;
@@ -79,11 +110,55 @@ export class TouchControls {
     return pos;
   }
 
+  // avança os temporizadores do modo de precisão; chamado a cada passo fixo do game loop
+  update(dt: number): void {
+    if (this.worldTouchId === null) return;
+    this.worldHeldTime += dt;
+    if (!this.worldMagnifierActive && this.worldHeldTime >= TOUCH_TAP_MAX_HOLD) {
+      this.worldMagnifierActive = true;
+      this.worldActivationTimer = 0;
+    }
+    if (this.worldMagnifierActive && this.worldActivationTimer < TOUCH_PRECISION_ACTIVATION_DELAY) {
+      this.worldActivationTimer += dt;
+    }
+  }
+
+  // ponto de tela (px) onde o alvo (crosshair/highlight) deve ser mostrado neste
+  // frame, com `active` indicando se a ação (minerar/construir) deve disparar
+  // agora. O alvo fica disponível assim que o dedo toca a zona de precisão (evita
+  // cair de volta pras coordenadas do mouse enquanto o toque ainda está sendo
+  // avaliado como tap ou lupa); `active` só liga no tap (disparo único) ou depois
+  // do atraso de ativação da lupa (evita minerar/construir sem querer enquanto o
+  // jogador ainda está posicionando o dedo). Null = nenhum toque de precisão em andamento.
+  worldActionTarget(): { x: number; y: number; active: boolean } | null {
+    if (this.worldTapPending) {
+      this.worldTapPending = false;
+      return { x: this.worldTapX, y: this.worldTapY, active: true };
+    }
+    if (this.worldTouchId !== null) {
+      const active = this.worldMagnifierActive && this.worldActivationTimer >= TOUCH_PRECISION_ACTIVATION_DELAY;
+      return { x: this.worldCurX, y: this.worldCurY, active };
+    }
+    return null;
+  }
+
+  get magnifierActive(): boolean {
+    return this.worldMagnifierActive;
+  }
+
   private menuButtonRect(): { x: number; y: number; size: number } {
     const unit = this.viewportUnit();
     const size = unit * TOUCH_MENU_BUTTON_SIZE_FRAC;
     const margin = unit * TOUCH_MENU_BUTTON_MARGIN_FRAC;
     return { x: window.innerWidth - margin - size, y: margin, size };
+  }
+
+  private fullscreenButtonRect(): { x: number; y: number; size: number } {
+    const unit = this.viewportUnit();
+    const size = unit * TOUCH_FULLSCREEN_BUTTON_SIZE_FRAC;
+    const gap = unit * TOUCH_FULLSCREEN_BUTTON_GAP_FRAC;
+    const menuBtn = this.menuButtonRect();
+    return { x: menuBtn.x - gap - size, y: menuBtn.y, size };
   }
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -108,15 +183,24 @@ export class TouchControls {
     return Math.min(window.innerWidth, window.innerHeight);
   }
 
+  // cruz (D-pad): ▲ e ▼ na coluna do meio, ◀ e ▶ nas pontas da linha do meio;
+  // ancorada acima da hotbar e à margem esquerda da tela.
   private buttonRects(): ButtonRect[] {
-    const unit = this.viewportUnit();
-    const size = unit * TOUCH_BUTTON_SIZE_FRAC;
-    const gap = unit * TOUCH_BUTTON_GAP_FRAC;
-    const margin = unit * TOUCH_BUTTON_MARGIN_FRAC;
-    // ancorado acima da hotbar (nunca sob o rodapé bruto da tela) pra nunca sobrepor seus slots
-    const y = hotbarTopY() - gap - size;
-    const kinds: ButtonKind[] = ["left", "right", "jump", "crouch"];
-    return kinds.map((kind, i) => ({ kind, x: margin + i * (size + gap), y, size }));
+    const size = window.innerHeight * TOUCH_DPAD_BUTTON_SIZE_FRAC;
+    const gap = window.innerHeight * TOUCH_DPAD_GAP_FRAC;
+    const margin = window.innerHeight * TOUCH_DPAD_MARGIN_FRAC;
+    const step = size + gap;
+
+    const left0 = margin;
+    const bottom = hotbarTopY() - gap;
+    const top0 = bottom - (size * 3 + gap * 2);
+
+    return [
+      { kind: "jump", x: left0 + step, y: top0, size },
+      { kind: "left", x: left0, y: top0 + step, size },
+      { kind: "right", x: left0 + step * 2, y: top0 + step, size },
+      { kind: "crouch", x: left0 + step, y: top0 + step * 2, size },
+    ];
   }
 
   private buttonAt(x: number, y: number): ButtonKind | null {
@@ -131,10 +215,51 @@ export class TouchControls {
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
 
+  private toggleFullscreen(): void {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {
+        // sem suporte ou negado: ignora, o jogo continua normalmente
+      });
+    } else {
+      this.canvas.requestFullscreen?.().catch(() => {
+        // sem suporte ou negado (precisa ser chamado direto no gesto de toque, o que já é o caso aqui)
+      });
+    }
+  }
+
+  private startWorldTouch(id: number, x: number, y: number): void {
+    this.worldTouchId = id;
+    this.worldCurX = x;
+    this.worldCurY = y;
+    this.worldHeldTime = 0;
+    this.worldMagnifierActive = false;
+    this.worldActivationTimer = 0;
+  }
+
+  private endWorldTouch(): void {
+    // só dispara o tap se soltou antes da lupa abrir (senão a ação contínua já rodou durante o hold)
+    if (!this.worldMagnifierActive && this.worldHeldTime < TOUCH_TAP_MAX_HOLD) {
+      this.worldTapPending = true;
+      this.worldTapX = this.worldCurX;
+      this.worldTapY = this.worldCurY;
+    }
+    this.worldTouchId = null;
+    this.worldMagnifierActive = false;
+    this.worldActivationTimer = 0;
+    this.worldHeldTime = 0;
+  }
+
   private onTouchStart(e: TouchEvent): void {
     e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
       const { x, y } = this.touchPos(t);
+
+      const fsBtn = this.fullscreenButtonRect();
+      if (x >= fsBtn.x && x <= fsBtn.x + fsBtn.size && y >= fsBtn.y && y <= fsBtn.y + fsBtn.size) {
+        this.touchRoles.set(t.identifier, { kind: "menu" }); // reaproveita o papel inerte no touchend
+        this.toggleFullscreen(); // precisa ser chamado direto no gesto de toque (síncrono)
+        continue;
+      }
 
       const menuBtn = this.menuButtonRect();
       if (x >= menuBtn.x && x <= menuBtn.x + menuBtn.size && y >= menuBtn.y && y <= menuBtn.y + menuBtn.size) {
@@ -168,15 +293,22 @@ export class TouchControls {
         continue;
       }
 
-      if (this.aimTouchId === null && x >= window.innerWidth * TOUCH_RIGHT_ZONE_START_FRAC) {
-        this.touchRoles.set(t.identifier, { kind: "aim" });
-        this.aimTouchId = t.identifier;
-        this.aimOriginX = x;
-        this.aimOriginY = y;
-        this.aimCurX = x;
-        this.aimCurY = y;
-        this.aimActive = true;
-        this.updateAimVector();
+      if (x >= window.innerWidth * TOUCH_RIGHT_ZONE_START_FRAC) {
+        if (this.aimTouchId === null) {
+          this.touchRoles.set(t.identifier, { kind: "aim" });
+          this.aimTouchId = t.identifier;
+          this.aimOriginX = x;
+          this.aimOriginY = y;
+          this.aimCurX = x;
+          this.aimCurY = y;
+          this.aimActive = true;
+          this.updateAimVector();
+        }
+        // toque adicional na zona de mira enquanto ela já está ocupada: ignorado
+      } else if (this.worldTouchId === null) {
+        // zona esquerda/central fora do D-pad: modo de precisão (tap exato / lupa)
+        this.touchRoles.set(t.identifier, { kind: "world" });
+        this.startWorldTouch(t.identifier, x, y);
       }
     }
   }
@@ -184,11 +316,18 @@ export class TouchControls {
   private onTouchMove(e: TouchEvent): void {
     e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
-      if (t.identifier !== this.aimTouchId) continue;
-      const { x, y } = this.touchPos(t);
-      this.aimCurX = x;
-      this.aimCurY = y;
-      this.updateAimVector();
+      if (t.identifier === this.aimTouchId) {
+        const { x, y } = this.touchPos(t);
+        this.aimCurX = x;
+        this.aimCurY = y;
+        this.updateAimVector();
+        continue;
+      }
+      if (t.identifier === this.worldTouchId) {
+        const { x, y } = this.touchPos(t);
+        this.worldCurX = x;
+        this.worldCurY = y;
+      }
     }
   }
 
@@ -211,6 +350,8 @@ export class TouchControls {
         this.aimActive = false;
         this.aimDirX = 0;
         this.aimDirY = 0;
+      } else if (role.kind === "world" && t.identifier === this.worldTouchId) {
+        this.endWorldTouch();
       }
     }
   }
@@ -235,6 +376,8 @@ export class TouchControls {
     this.renderButtons(ctx);
     this.renderJoystick(ctx);
     this.renderMenuButton(ctx);
+    this.renderFullscreenButton(ctx);
+    this.renderMagnifier(ctx);
   }
 
   private renderMenuButton(ctx: CanvasRenderingContext2D): void {
@@ -250,6 +393,21 @@ export class TouchControls {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("☰", x + size / 2, y + size / 2 + 1);
+  }
+
+  private renderFullscreenButton(ctx: CanvasRenderingContext2D): void {
+    const { x, y, size } = this.fullscreenButtonRect();
+    ctx.fillStyle = TOUCH_BUTTON_BG_COLOR;
+    ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = TOUCH_BUTTON_BORDER_COLOR;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+
+    ctx.fillStyle = TOUCH_BUTTON_ICON_COLOR;
+    ctx.font = `${Math.round(size * 0.55)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("⛶", x + size / 2, y + size / 2 + 1);
   }
 
   private renderButtons(ctx: CanvasRenderingContext2D): void {
@@ -297,5 +455,55 @@ export class TouchControls {
     ctx.arc(knobX, knobY, knobRadius, 0, Math.PI * 2);
     ctx.fillStyle = TOUCH_JOYSTICK_KNOB_COLOR;
     ctx.fill();
+  }
+
+  // Lupa de precisão: amostra (via drawImage do próprio canvas, já desenhado
+  // neste frame) um círculo da área sob o dedo e desenha essa amostra ampliada
+  // num círculo deslocado acima do dedo, com crosshair marcando o tile alvo.
+  private renderMagnifier(ctx: CanvasRenderingContext2D): void {
+    if (!this.worldMagnifierActive) return;
+
+    const unit = this.viewportUnit();
+    const lensRadius = unit * TOUCH_MAGNIFIER_RADIUS_FRAC;
+    const srcRadius = lensRadius / TOUCH_MAGNIFIER_ZOOM;
+    const offsetY = unit * TOUCH_MAGNIFIER_OFFSET_Y_FRAC;
+    const centerX = this.worldCurX;
+    const centerY = this.worldCurY - offsetY;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, lensRadius, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.imageSmoothingEnabled = true; // prévia ampliada, não precisa ser pixel-perfect
+    ctx.drawImage(
+      ctx.canvas,
+      this.worldCurX - srcRadius,
+      this.worldCurY - srcRadius,
+      srcRadius * 2,
+      srcRadius * 2,
+      centerX - lensRadius,
+      centerY - lensRadius,
+      lensRadius * 2,
+      lensRadius * 2,
+    );
+    ctx.imageSmoothingEnabled = false;
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, lensRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = TOUCH_MAGNIFIER_BORDER_COLOR;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const crossSize = lensRadius * 0.25;
+    ctx.strokeStyle = TOUCH_MAGNIFIER_CROSSHAIR_COLOR;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX - crossSize, centerY);
+    ctx.lineTo(centerX + crossSize, centerY);
+    ctx.moveTo(centerX, centerY - crossSize);
+    ctx.lineTo(centerX, centerY + crossSize);
+    ctx.stroke();
   }
 }
