@@ -158,6 +158,9 @@ export class Player {
   grounded = false;
   coyoteTimer = 0;
   jumpHeld = false;
+  stopTimer = 0; // tempo decorrido desacelerando no chão (ver physics.ts)
+  stopVx = 0; // vx capturada no instante em que a desaceleração começou
+  footstepDist = 0; // px acumulados no chão desde o último puff de passo
   hp = PLAYER_MAX_HP;
   readonly maxHp = PLAYER_MAX_HP;
   readonly width = PLAYER_WIDTH;

@@ -9,7 +9,7 @@ import { DayNight } from "./world/daynight";
 import { renderParallax } from "./world/parallax";
 import { drawOreSparkles } from "./world/sparkle";
 import { drawTorches, updateTorchSparks } from "./world/torches";
-import { TileType } from "./world/tiles";
+import { TileType, TILE_PROPS } from "./world/tiles";
 import { applyTileDeltas, buildSaveData, clearStorage, readFromStorage, saveToStorage } from "./world/save";
 import { Player } from "./player/player";
 import { stepPlayer, type Controls } from "./player/physics";
@@ -20,7 +20,20 @@ import { SaveMenu, type SaveMenuAction } from "./ui/savemenu";
 import {
   CAMERA_FOLLOW_SPEED,
   DAY_START_FRACTION,
+  DUST_PARTICLE_COLOR,
+  DUST_PARTICLE_COUNT,
+  DUST_PARTICLE_LIFE,
+  DUST_PARTICLE_SIZE,
+  DUST_PARTICLE_SPEED,
   FIXED_TIMESTEP,
+  FOOTSTEP_BURST_SPEED_THRESHOLD,
+  FOOTSTEP_MIN_SPEED,
+  FOOTSTEP_PARTICLE_COUNT_MAX,
+  FOOTSTEP_PARTICLE_COUNT_MIN,
+  FOOTSTEP_PARTICLE_LIFE,
+  FOOTSTEP_PARTICLE_SIZE,
+  FOOTSTEP_PARTICLE_SPEED,
+  FOOTSTEP_STEP_DISTANCE,
   LANDING_FALL_SPEED_THRESHOLD,
   MAX_FRAME_DELTA,
   SAVE_AUTOSAVE_INTERVAL,
@@ -67,6 +80,14 @@ function spawnPlayerAtSurface(): void {
   player.vy = 0;
 }
 
+// Cor do tile logo abaixo dos pés do player, usada nos puffs/rajadas de poeira; +0.5 evita que
+// imprecisão de ponto flutuante na borda exata do tile aponte pro tile de cima por engano.
+function feetTileColor(): string {
+  const tx = Math.floor((player.x + player.width / 2) / TILE_SIZE);
+  const ty = Math.floor((player.y + player.height + 0.5) / TILE_SIZE);
+  return TILE_PROPS[world.getTile(tx, ty)].cor || DUST_PARTICLE_COLOR;
+}
+
 // boot: carrega o save (se válido e da mesma versão) ou gera o mundo padrão
 const savedGame = readFromStorage();
 if (savedGame) {
@@ -109,6 +130,7 @@ function applyMenuAction(action: SaveMenuAction): void {
 
 let autosaveTimer = 0;
 let animTime = 0;
+let prevMoveDir: 1 | 0 | -1 = 0;
 
 function update(dt: number): void {
   if (input.consumeKeyPress("F1")) saveMenu.toggle();
@@ -139,12 +161,63 @@ function update(dt: number): void {
     crouch,
     sprint,
   };
+  const dirNow: 1 | 0 | -1 = controls.right === controls.left ? 0 : controls.right ? 1 : -1;
   const wasGrounded = player.grounded;
   const vyBeforeStep = player.vy;
+  const vxBeforeStep = player.vx;
+  const xBeforeStep = player.x;
   stepPlayer(player, world, controls, dt);
+
   if (!wasGrounded && player.grounded && vyBeforeStep > LANDING_FALL_SPEED_THRESHOLD) {
-    particles.spawnLandingDust(player.x + player.width / 2, player.y + player.height);
+    particles.spawnDust(
+      player.x + player.width / 2,
+      player.y + player.height,
+      feetTileColor(),
+      DUST_PARTICLE_COUNT,
+      DUST_PARTICLE_SPEED,
+      DUST_PARTICLE_LIFE,
+      DUST_PARTICLE_SIZE,
+    );
   }
+
+  // puffs de passo: um a cada FOOTSTEP_STEP_DISTANCE px percorridos no chão
+  if (player.grounded && Math.abs(player.vx) > FOOTSTEP_MIN_SPEED) {
+    player.footstepDist += Math.abs(player.x - xBeforeStep);
+    if (player.footstepDist >= FOOTSTEP_STEP_DISTANCE) {
+      player.footstepDist -= FOOTSTEP_STEP_DISTANCE;
+      const count =
+        FOOTSTEP_PARTICLE_COUNT_MIN + Math.floor(Math.random() * (FOOTSTEP_PARTICLE_COUNT_MAX - FOOTSTEP_PARTICLE_COUNT_MIN + 1));
+      particles.spawnDust(
+        player.x + player.width / 2,
+        player.y + player.height,
+        feetTileColor(),
+        count,
+        FOOTSTEP_PARTICLE_SPEED,
+        FOOTSTEP_PARTICLE_LIFE,
+        FOOTSTEP_PARTICLE_SIZE,
+      );
+    }
+  } else {
+    player.footstepDist = 0;
+  }
+
+  // rajada maior: soltar a direção ou invertê-la bruscamente vindo de velocidade alta
+  if (player.grounded && Math.abs(vxBeforeStep) > FOOTSTEP_BURST_SPEED_THRESHOLD) {
+    const justReleased = prevMoveDir !== 0 && dirNow === 0;
+    const justReversed = prevMoveDir !== 0 && dirNow !== 0 && dirNow !== prevMoveDir;
+    if (justReleased || justReversed) {
+      particles.spawnDust(
+        player.x + player.width / 2,
+        player.y + player.height,
+        feetTileColor(),
+        DUST_PARTICLE_COUNT,
+        DUST_PARTICLE_SPEED,
+        DUST_PARTICLE_LIFE,
+        DUST_PARTICLE_SIZE,
+      );
+    }
+  }
+  prevMoveDir = dirNow;
 
   // câmera segue o player com suavização e clamp nos limites do mundo
   const alpha = 1 - Math.exp(-CAMERA_FOLLOW_SPEED * dt);

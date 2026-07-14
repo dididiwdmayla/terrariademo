@@ -147,7 +147,17 @@ export const DUST_PARTICLE_COUNT = 6;
 export const DUST_PARTICLE_SPEED = 60; // px/s
 export const DUST_PARTICLE_LIFE = 0.4; // segundos
 export const DUST_PARTICLE_SIZE = 2; // px nativos
-export const DUST_PARTICLE_COLOR = "#c9c2b4";
+export const DUST_PARTICLE_COLOR = "#c9c2b4"; // fallback quando não há cor de tile (ex.: sem chão sob o pé)
+
+// --- Poeira de passos (puffs ao andar/correr; rajada maior ao frear, virar ou aterrissar) ---
+export const FOOTSTEP_STEP_DISTANCE = 26; // px percorridos no chão entre passos
+export const FOOTSTEP_MIN_SPEED = 20; // px/s abaixo disso não conta como andando
+export const FOOTSTEP_PARTICLE_COUNT_MIN = 2;
+export const FOOTSTEP_PARTICLE_COUNT_MAX = 3;
+export const FOOTSTEP_PARTICLE_LIFE = 0.3; // segundos
+export const FOOTSTEP_PARTICLE_SPEED = 25; // px/s
+export const FOOTSTEP_PARTICLE_SIZE = 2; // px nativos
+export const FOOTSTEP_BURST_SPEED_THRESHOLD = 150; // px/s: freada/virada acima disso dispara rajada maior
 export const SPARK_SPAWN_CHANCE_PER_SEC = 2.5; // fagulhas/s por tocha visível
 export const SPARK_PARTICLE_LIFE = 0.7; // segundos
 export const SPARK_PARTICLE_SPEED = 14; // px/s, subida
@@ -173,7 +183,7 @@ export const PLAYER_HEIGHT = 32; // px
 export const PLAYER_MOVE_SPEED = 220; // px/s, velocidade horizontal máxima
 export const PLAYER_GROUND_ACCEL = 2600; // px/s^2
 export const PLAYER_AIR_ACCEL = 1400; // px/s^2
-export const PLAYER_GROUND_FRICTION = 2200; // px/s^2, desaceleração sem input no chão
+export const PLAYER_STOP_TIME = 0.1; // segundos p/ desacelerar até parar no chão (curva, não instantâneo)
 export const PLAYER_AIR_FRICTION = 250; // px/s^2, desaceleração sem input no ar
 export const PLAYER_JUMP_SPEED = 460; // px/s (~4.4 tiles de altura de pulo)
 export const PLAYER_JUMP_CUT_SPEED = 140; // px/s, teto da subida ao soltar o pulo (altura variável)
